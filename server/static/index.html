@@ -74,6 +74,30 @@
   .screen { color: var(--faint); font: 12px ui-monospace, "SF Mono", Menlo, monospace; flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .detail-foot { display: flex; gap: 6px; margin-top: 10px; }
 
+  .ask { background: var(--surface); border-radius: var(--radius); padding: 16px; margin-bottom: 26px; }
+  .ask-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  .ask-head b { font-size: 15px; letter-spacing: -.01em; }
+  .ask-head span { color: var(--faint); font-size: 12px; }
+  .ask-row { display: flex; gap: 8px; }
+  .ask-row input { flex: 1; min-width: 0; height: 38px; border-radius: 11px; border: 1px solid var(--line); background: var(--bg); padding: 0 12px; }
+  .ask-row input:focus { outline: 2px solid rgba(229,72,77,.55); outline-offset: 0; }
+  .ask-row input::placeholder { color: var(--faint); }
+  .ask-row .btn { height: 38px; border-radius: 11px; }
+  .answer { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .answer .name { white-space: normal; }
+  .answer p { margin: 4px 0 12px; color: var(--muted); font-size: 14px; }
+  .answer p b { color: var(--text); font-weight: 600; }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .choice { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; transition: border-color .15s, background .15s; }
+  .choice:hover { border-color: rgba(229,72,77,.6); background: rgba(229,72,77,.06); }
+  .choice b { display: block; font-size: 14px; }
+  .choice span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .answer .foot { margin-top: 10px; color: var(--faint); font-size: 12px; }
+  .seg { display: inline-flex; background: var(--bg); border-radius: 10px; padding: 3px; }
+  .seg button { height: 28px; padding: 0 12px; border-radius: 8px; font-size: 13px; color: var(--muted); }
+  .seg button.on { background: var(--surface-2); color: var(--text); font-weight: 500; }
+  .run-opts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+  .run-opts input { width: 58px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); padding: 0 8px; font-variant-numeric: tabular-nums; }
   .empty { text-align: center; padding: 56px 20px; color: var(--muted); }
   .empty b { display: block; color: var(--text); font-size: 17px; margin-bottom: 4px; }
 
@@ -109,6 +133,7 @@
     .detail { padding-left: 16px; }
     .screen { display: none; }
     h1 { font-size: 26px; }
+    .choices { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -123,6 +148,14 @@
 <main>
   <h1>Tour hướng dẫn</h1>
   <p class="sub" id="count">Đang tải…</p>
+  <form class="ask" id="askForm" autocomplete="off">
+    <div class="ask-head"><b>Trợ lý tìm tour</b><span id="aiInfo"></span></div>
+    <div class="ask-row">
+      <input id="askQ" maxlength="500" placeholder="Bạn muốn tới màn hình nào? Ví dụ: tôi muốn nộp tiền">
+      <button class="btn primary" id="askGo">Hỏi</button>
+    </div>
+    <div id="answer"></div>
+  </form>
   <input class="search" id="q" type="search" placeholder="Tìm theo tên hoặc màn bắt đầu" autocomplete="off">
   <div id="list"></div>
 </main>
@@ -141,8 +174,12 @@
 <div class="scrim" id="runSheet"><div class="sheet">
   <h2>Chạy thử</h2>
   <p id="runName"></p>
+  <div class="run-opts">
+    <div class="seg" id="runMode"><button type="button" data-mode="guide">Hướng dẫn từng bước</button><button type="button" data-mode="direct">Vào thẳng</button></div>
+    <label>Dừng sau bước <input id="runTo" type="number" min="1"> <span id="runOf"></span></label>
+  </div>
   <ol>
-    <li><div>Sao chép mã chạy thử<small>Gồm thư viện và tour này trong một đoạn mã</small></div><button class="btn primary" id="runCopy">Sao chép</button></li>
+    <li><div>Sao chép mã chạy thử<small id="runWhat"></small></div><button class="btn primary" id="runCopy">Sao chép</button></li>
     <li><div>Mở màn bắt đầu của tour<small id="runUrl"></small></div><a class="btn gray" id="runOpen" target="_blank" rel="noopener" style="display:inline-grid;place-items:center;text-decoration:none;color:inherit">Mở trang</a></li>
     <li><div>Mở console của trang đó, dán mã và nhấn Enter<small>Chrome trên Mac: ⌥⌘J · Windows: Ctrl+Shift+J</small></div></li>
   </ol>
@@ -229,14 +266,53 @@ async function fill(d, t) {
   } catch (e) { d.replaceChildren(el('div', 'err', e.message)); }
 }
 
-function openRun(t) {
+let runOpt = { mode: 'guide', to: 1 };
+const runQuery = () => `mode=${runOpt.mode}&to=${runOpt.to}`;
+function syncRun() {
+  const t = pending;
+  document.querySelectorAll('#runMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === runOpt.mode));
+  $('runTo').value = runOpt.to; $('runTo').max = t.step_count; $('runOf').textContent = `/ ${t.step_count}`;
+  $('runWhat').textContent = runOpt.mode === 'direct' ? 'Thư viện tự làm các bước và đưa tới nơi' : 'Thư viện chỉ từng thao tác, người dùng tự bấm';
+  $('runParam').textContent = `${t.start_url}?tourfp=${t.id}&${runQuery()}`;
+  $('runCopy').textContent = 'Sao chép';
+}
+function openRun(t, opt) {
   pending = t;
+  runOpt = { mode: opt && opt.mode === 'direct' ? 'direct' : 'guide', to: Math.min(Math.max((opt && opt.to) || t.step_count, 1), t.step_count) };
   rich($('runName'), `«${t.name}» · ${t.step_count} bước · bố cục ${t.layout || 'không rõ'}`);
   $('runUrl').textContent = t.start_url; $('runOpen').href = t.start_url;
-  $('runParam').textContent = `${t.start_url}?tourfp=${t.id}`;
-  $('runCopy').textContent = 'Sao chép';
+  syncRun();
   show('runSheet');
 }
+document.querySelectorAll('#runMode button').forEach(b => b.onclick = () => { runOpt.mode = b.dataset.mode; syncRun(); });
+$('runTo').oninput = () => { const v = parseInt($('runTo').value, 10); if (v >= 1 && v <= pending.step_count) { runOpt.to = v; syncRun(); } };
+
+// ---- trợ lý tìm tour
+$('askForm').onsubmit = async e => {
+  e.preventDefault();
+  const q = $('askQ').value.trim(); if (!q) return;
+  const box = $('answer'); box.className = 'answer'; box.replaceChildren(el('div', 'meta', 'Đang tìm…'));
+  $('askGo').disabled = true;
+  try {
+    const a = await api('/api/assist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) });
+    box.replaceChildren();
+    if (!a.matched) box.append(el('div', 'name', 'Chưa tìm thấy tour phù hợp'), el('p', '', a.reason || ''));
+    else {
+      box.append(el('div', 'name', a.tour.name + (a.to_step < a.tour.step_count ? ` · tới bước ${a.to_step}/${a.tour.step_count}` : '')));
+      const why = el('p'); rich(why, a.reason + (a.to_step < a.tour.step_count ? ` Dừng ở bước ${a.to_step}: «${a.step.target}».` : '')); box.append(why);
+      const ch = el('div', 'choices');
+      for (const o of a.options) {
+        const b = el('button', 'choice'); b.type = 'button'; b.append(el('b', '', o.label), el('span', '', o.detail));
+        b.onclick = () => openRun(a.tour, { mode: o.mode, to: a.to_step });
+        ch.append(b);
+      }
+      box.append(ch);
+    }
+    const foot = el('div', 'foot', (a.engine === 'keyword' ? 'Tìm bằng từ khoá' : 'Tìm bằng AI (' + a.engine + ')') + (a.alternatives.length ? ' · Tour khác có thể hợp: ' + a.alternatives.map(x => x.name).join(', ') : '') + (a.ai_error ? ' · AI lỗi nên đã dùng từ khoá: ' + a.ai_error : ''));
+    box.append(foot);
+  } catch (err) { box.replaceChildren(el('div', 'err', err.message)); }
+  $('askGo').disabled = false;
+};
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
   const ta = el('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.append(ta); ta.select();
@@ -244,7 +320,7 @@ async function copyText(text) {
 }
 $('runCopy').onclick = async () => {
   try {
-    const code = await (await fetch(`/api/tours/${pending.id}/snippet.js`)).text();
+    const code = await (await fetch(`/api/tours/${pending.id}/snippet.js?${runQuery()}`)).text();
     if (await copyText(code)) { $('runCopy').textContent = 'Đã chép'; toast(`Đã chép mã chạy thử (${Math.round(code.length / 1024)} KB)`); } else toast('Trình duyệt không cho chép. Hãy thử lại.');
   } catch (e) { toast(e.message); }
 };
@@ -276,7 +352,7 @@ addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
 $('q').oninput = render;
 
 async function load() { try { tours = await api('/api/tours'); } catch (e) { tours = []; toast(e.message); } render(); }
-api('/api/config').then(c => { $('target').textContent = new URL(c.target).host; }).catch(() => {});
+api('/api/config').then(c => { $('target').textContent = new URL(c.target).host; $('aiInfo').textContent = c.ai === 'off' ? 'AI đang tắt, tìm bằng từ khoá' : `AI: ${c.ai} · ${c.ai_model}`; if (c.ai_error) $('aiInfo').textContent = 'Cấu hình AI lỗi: ' + c.ai_error; }).catch(() => {});
 load();
 </script>
 </body>

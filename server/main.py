@@ -4,6 +4,7 @@ Chạy:  uvicorn main:app --app-dir server --port 8000
 Cấu hình qua biến môi trường:
   TOURFP_TARGET  trang web mà tour chạy trên đó (mặc định https://tcinvest.tcbs.com.vn)
   TOURFP_DATA    thư mục chứa file SQLite (mặc định server/data)
+  TOURFP_AI      off | bedrock | litellm: mô hình dùng cho trợ lý tìm tour (xem ai.py)
 
 Không có đăng nhập: đây là công cụ nội bộ, chỉ nên nghe trên 127.0.0.1.
 """
@@ -17,12 +18,15 @@ import time
 import uuid
 from contextlib import closing
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field, field_validator
+
+import ai
+import assist
 
 BASE = Path(__file__).resolve().parent
 LIB = BASE.parent / "tourfp.js"
@@ -126,9 +130,26 @@ class TourIn(BaseModel):
 
 
 # ---------- API ----------
+_adapter: ai.Adapter | None = None
+_adapter_ready = False
+
+
+def adapter() -> tuple[ai.Adapter | None, str | None]:
+    """Adaptor AI theo cấu hình (tạo một lần), kèm lỗi cấu hình nếu có."""
+    global _adapter, _adapter_ready
+    if not _adapter_ready:
+        try:
+            _adapter = ai.from_env()
+        except ai.AIError as e:
+            return None, str(e)  # cấu hình sai: lần gọi sau thử lại, phòng khi vừa được sửa
+        _adapter_ready = True
+    return _adapter, None
+
+
 @app.get("/api/config")
-def config() -> dict[str, str]:
-    return {"target": TARGET}
+def config() -> dict[str, Any]:
+    ad, err = adapter()
+    return {"target": TARGET, "ai": ad.name if ad else "off", "ai_model": os.environ.get("TOURFP_AI_MODEL", "") if ad else "", "ai_error": err}
 
 
 @app.get("/api/tours")
@@ -174,16 +195,47 @@ def delete_tour(tour_id: str) -> Response:
     return Response(status_code=204)
 
 
+class AssistIn(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    layout: Literal["desktop", "mobile"] | None = None
+
+    @field_validator("query")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Hãy nhập màn hình bạn muốn tới")
+        return v
+
+
+@app.post("/api/assist")
+def assist_route(body: AssistIn) -> dict[str, Any]:
+    """Người dùng nói muốn tới màn hình nào; trả về tour phù hợp, bước cần dừng và hai cách đi (dẫn từng bước, vào thẳng)."""
+    with closing(db()) as conn:
+        rows = conn.execute("SELECT * FROM tours ORDER BY created_at DESC").fetchall()
+    tours = [{**summary(r), "steps": json.loads(r["steps"])} for r in rows]
+    ad, err = adapter()
+    result = assist.find_tour(body.query, body.layout, tours, ad, TARGET)
+    if err:
+        result["ai_error"] = err
+    return result
+
+
 @app.get("/api/tours/{tour_id}/snippet.js")
-def snippet(tour_id: str) -> Response:
-    """Mã chạy thử: cả thư viện lẫn tour trong một đoạn, dán vào console của trang đích là phát ngay."""
+def snippet(tour_id: str, mode: Literal["guide", "direct"] = "guide", to: int | None = None) -> Response:
+    """Mã chạy thử: cả thư viện lẫn tour trong một đoạn, dán vào console của trang đích là phát ngay.
+
+    mode=guide dẫn từng bước, mode=direct tự đưa tới nơi; to=x dừng sau bước x (mặc định: hết tour).
+    """
     with closing(db()) as conn:
         row = get_row(conn, tour_id)
+    last = min(max(to or row["step_count"], 1), row["step_count"])
+    start = json.dumps({"mode": mode, "to": last})
     # TOURFP_PLAYER: chỉ phát, không hiện thanh ghi tour. Xoá cờ ngay sau khi nạp để lần nạp thư viện sau không bị ảnh hưởng.
     code = (
         "window.TOURFP_PLAYER=true;\n"
         f"{LIB.read_text(encoding='utf-8')}\n"
-        f";delete window.TOURFP_PLAYER;TourFP.load({row['steps']});TourFP.play();\n"
+        f";delete window.TOURFP_PLAYER;TourFP.load({row['steps']});TourFP.start({start});\n"
     )
     return Response(code, media_type="text/javascript; charset=utf-8", headers={"Cache-Control": "no-store"})
 

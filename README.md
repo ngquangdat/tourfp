@@ -98,6 +98,54 @@ Khi thư viện được cài sẵn trong app và app cho phép gọi tới máy
 (mặc định `http://localhost:8000`). Trang TCInvest hiện chặn mọi kết nối ra ngoài danh sách cho phép của nó, nên với trang đó
 phải dùng cách dán JSON và dán mã chạy thử.
 
+### Trợ lý tìm tour
+
+Người dùng nói muốn tới màn hình nào, máy chủ tìm tour phù hợp trong danh sách và trả về hai cách đi:
+
+```bash
+curl -X POST http://localhost:8000/api/assist -H 'Content-Type: application/json' -d '{"query": "tôi muốn nộp tiền", "layout": "mobile"}'
+```
+
+Câu trả lời gồm `tour` (tour được chọn), `to_step` (dừng sau bước thứ mấy; mặc định là bước cuối, hoặc bước người dùng nêu như
+"tới bước 3"), `reason` (lý do, để hiện cho người dùng) và `options`:
+
+- `guide` — **Hướng dẫn từng bước**: chỉ từng thao tác, người dùng tự bấm.
+- `direct` — **Vào thẳng màn hình**: thư viện tự đưa tới nơi. Nếu bước cuối chuyển sang một trang khác thì vào thẳng trang đó
+  bằng đường dẫn; nếu không thì tự bấm các bước trên trang cuối. Gặp bước cần người dùng nhập, hoặc không tìm thấy đích,
+  nó chuyển sang hướng dẫn từng bước từ chỗ đó.
+
+Mỗi lựa chọn kèm `run_url` (mở trang với `?tourfp=<mã>&mode=<guide|direct>&to=<bước>`, dùng khi thư viện đã cài trong app) và
+`snippet_url` (mã chạy thử để dán vào console). Trên trang quản trị có ô **Trợ lý tìm tour** để thử ngay.
+
+Trong app đã cài thư viện và gọi được máy chủ, có thể dùng thẳng:
+
+```js
+TourFP.ask('tôi muốn nộp tiền');          // hỏi trợ lý rồi hiện hai lựa chọn cho người dùng
+TourFP.start({ mode: 'direct', to: 3 });  // chạy tour đang nạp: vào thẳng, dừng sau bước 3
+```
+
+Chế độ vào thẳng tự bấm thay người dùng. Với tour đi qua thao tác có hậu quả (đặt lệnh, xác nhận giao dịch), nên đặt `to` dừng
+trước các bước đó, hoặc chỉ đưa ra lựa chọn hướng dẫn từng bước.
+
+### Nối với mô hình AI
+
+Mặc định trợ lý tìm bằng so khớp từ khoá, không gọi AI. Bật AI bằng biến môi trường `TOURFP_AI`:
+
+| `TOURFP_AI` | Nối tới | Cần đặt thêm |
+|---|---|---|
+| `off` (mặc định) | Không gọi AI | |
+| `bedrock` | Amazon Bedrock, qua API Converse | `TOURFP_AI_MODEL`, `AWS_REGION`, thông tin đăng nhập AWS; cài `boto3` |
+| `litellm` | LiteLLM proxy, hoặc máy chủ nào nói giao thức `chat/completions` | `TOURFP_AI_MODEL`, `TOURFP_LITELLM_URL`, `TOURFP_LITELLM_KEY` (nếu proxy yêu cầu) |
+
+```bash
+TOURFP_AI=litellm TOURFP_AI_MODEL=<tên mô hình> TOURFP_LITELLM_URL=http://localhost:4000 uvicorn main:app --app-dir server --port 8000
+```
+
+Mô hình chỉ nhận tên tour, mô tả và nhãn của từng bước, cùng câu người dùng nhập; không nhận dấu vân tay. Câu trả lời của mô
+hình luôn được kiểm lại (tour phải có thật, số bước phải nằm trong tour). Khi mô hình lỗi hoặc trả lời sai dạng, trợ lý tự
+chuyển sang so khớp từ khoá và ghi lý do vào `ai_error`. Thêm một nhà cung cấp khác bằng cách viết một lớp có hàm
+`complete(system, user)` trong `server/ai.py`.
+
 Máy chủ không có đăng nhập; chỉ nên chạy trên `127.0.0.1`.
 
 ## Giới hạn hiện tại

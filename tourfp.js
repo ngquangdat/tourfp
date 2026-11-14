@@ -417,6 +417,7 @@
   const steps = []; // { kind: 'click' | 'hover' | 'input' | 'info', fp, note }
   let recording = false, playing = -1, raf = 0, target = null, token = 0, pending = null, lastCap = 0;
   let hoverEl = null, hoverT = 0, lastDown = 0, popups = [], advancing = false;
+  let directRun = 0, fullSteps = null, choice = null; // lượt "vào thẳng" đang chạy; bản đầy đủ của tour khi chỉ chạy tới bước x; hai lựa chọn đang chờ
   // khi đang ghi: menu bật ra do rê chuột (không phải do bấm) thì nhớ phần tử đang được rê lên
   const popMo = new MutationObserver(list => {
     // bỏ qua nếu vừa có cú bấm (trong 1,5 giây, hoặc từ lúc chuột vào phần tử đang rê): khi đó thứ bật ra là do bấm
@@ -467,7 +468,8 @@
   const tipText = mk('div', 'margin-bottom:4px;white-space:pre-line');
   const tipMeta = mk('div', 'margin-bottom:8px;font-size:11px;opacity:.55');
   const bNext = mk('button', btnCss + 'pointer-events:auto;background:#e5484d;', 'Tiếp'), bStop = mk('button', btnCss + 'pointer-events:auto;background:#ddd;color:#111;margin-left:6px', 'Dừng');
-  tip.append(tipText, tipMeta, bNext, bStop);
+  const bClose = mk('button', btnCss + 'pointer-events:auto;background:none;color:#666;margin-left:6px;display:none', 'Đóng');
+  tip.append(tipText, tipMeta, bNext, bStop, bClose);
   // chế độ chỉ phát (chạy thử từ trang quản trị, hoặc mở trang với ?tourfp=<mã>): không hiện thanh ghi tour
   const PLAYER = !!window.TOURFP_PLAYER || new URLSearchParams(location.search).has('tourfp');
   if (PLAYER) panel.style.display = 'none';
@@ -596,7 +598,11 @@
     setInfo(); cancelAnimationFrame(raf); loop();
   }
   function stop() { recording = false; pending = null; popMo.disconnect(); bRec.textContent = '● Ghi'; bRec.style.background = '#2a2f3a'; target = null; box.style.display = 'none'; cancelAnimationFrame(raf); setInfo(); }
-  function stopPlay(msg) { token++; playing = -1; atEnd = false; tip.style.display = 'none'; box.style.display = 'none'; target = null; cancelAnimationFrame(raf); setInfo(msg); }
+  function stopPlay(msg) {
+    token++; directRun++; playing = -1; atEnd = false; choice = null; bClose.style.display = 'none';
+    if (fullSteps) { steps.length = 0; steps.push(...fullSteps); fullSteps = null; }
+    tip.style.display = 'none'; box.style.display = 'none'; target = null; cancelAnimationFrame(raf); setInfo(msg);
+  }
 
   // chờ đến khi màn hình của bước hiện ra và tìm được đích
   // alt: dấu vân tay của bước kế; nếu màn hình đã ở trạng thái của bước kế thì bỏ qua bước này
@@ -727,6 +733,75 @@
     if (first >= 0) show(first); else goStart();
   }
 
+  // ---------- vào thẳng: thư viện tự làm các bước thay người dùng ----------
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const navTo = path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate', { state: null })); };
+  const pressEsc = () => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
+  // giả lập rê chuột: sự kiện "enter" không nổi bọt nên bắn riêng cho phần tử và vài cấp cha của nó
+  function hoverOn(el) {
+    for (const t of ['pointerover', 'mouseover', 'mousemove']) el.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
+    for (let p = el, i = 0; p && p !== document.body && i < 4; p = p.parentElement, i++) for (const t of ['pointerenter', 'mouseenter']) p.dispatchEvent(new MouseEvent(t, { bubbles: false, view: window }));
+  }
+  async function direct() {
+    if (recording) stop();
+    if (!steps.length) return setInfo('Chưa có bước nào');
+    const my = ++directRun, alive = () => my === directRun;
+    const n = steps.length, last = steps[n - 1];
+    token++; playing = -1; target = null; atEnd = false; box.style.display = 'none'; cancelAnimationFrame(raf);
+    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
+    const say = t => { rich(tipText, t); tipMeta.textContent = ''; setBtns(null, 'Dừng'); };
+    say('Đang đưa bạn tới màn hình…');
+    const finish = () => { say('Đã đưa bạn tới nơi.'); setBtns(null, null); setTimeout(() => { if (alive()) stopPlay('Đã tới nơi'); }, 1600); };
+
+    // 1) Bước cuối chuyển sang một trang khác và không mở hộp thoại: vào thẳng trang đó bằng đường dẫn.
+    const after = last.after;
+    if (after && !after.dialog && !after.step && after.path !== last.fp.ctx.path) {
+      if (topDialog()) pressEsc();
+      if (location.pathname !== after.path) navTo(after.path);
+      for (let t = 0; t < 15 && alive() && context().path !== after.path; t++) await sleep(200);
+      if (!alive()) return;
+      if (context().path !== after.path) return location.assign(after.path); // app không tự chuyển: tải thẳng trang đó
+      return finish();
+    }
+
+    // 2) Còn lại: chỉ làm "chặng cuối", tức các bước liền nhau cùng đường dẫn với bước cuối. Các trang trước đó bỏ qua.
+    let first = n - 1;
+    while (first > 0 && steps[first - 1].fp.ctx.path === last.fp.ctx.path) first--;
+    if (steps[first].fp.ctx.dialog) return play(); // chặng cuối bắt đầu trong một hộp thoại: không tới được bằng đường dẫn, quay về dẫn từng bước
+    const c = context();
+    let start = -1;
+    for (let i = first; i < n && start < 0; i++) if (sameCtx(steps[i].fp.ctx, c) && find(steps[i].fp).el) start = i; // đang đứng sẵn giữa chặng
+    if (start < 0) {
+      if (topDialog()) pressEsc();
+      if (location.pathname !== steps[first].fp.ctx.path) navTo(steps[first].fp.ctx.path);
+      start = first;
+    }
+    for (let i = start; i < n; i++) {
+      const st = steps[i];
+      if (st.kind === 'info') continue; // bước chỉ để xem, không có gì phải làm
+      say(`Đang đưa bạn tới màn hình… (${i + 1}/${n})`);
+      const r = await waitFind(st.fp, 6000, steps.slice(i + 1, i + 3).map((x, k) => ({ fp: x.fp, idx: i + 1 + k })));
+      if (!r || !alive()) return;
+      if (r.skipTo != null) { i = r.skipTo - 1; continue; } // bước này đã được làm sẵn
+      if (!r.el || st.kind === 'input') { directRun++; return show(i); } // không tự làm được (không thấy đích, hoặc cần người dùng nhập): dẫn từng bước từ đây
+      if (st.kind === 'hover') hoverOn(r.el);
+      else { r.el.scrollIntoView({ block: 'center', inline: 'nearest' }); r.el.click(); }
+      await sleep(350);
+      if (!alive()) return;
+    }
+    finish();
+  }
+
+  // Bắt đầu một lượt: mode 'guide' (dẫn từng bước, mặc định) hoặc 'direct' (vào thẳng); to = dừng sau bước thứ mấy (mặc định: hết tour).
+  function start(opts = {}) {
+    if (recording) stop();
+    if (!steps.length) return setInfo('Chưa có bước nào');
+    if (fullSteps) { steps.length = 0; steps.push(...fullSteps); fullSteps = null; }
+    const to = Math.min(Math.max(parseInt(opts.to, 10) || steps.length, 1), steps.length);
+    if (to < steps.length) { fullSteps = steps.slice(); steps.length = to; }
+    return opts.mode === 'direct' ? direct() : play();
+  }
+
   // ---------- máy chủ lưu tour (thư mục server/) ----------
   const SERVER = String(window.TOURFP_SERVER || 'http://localhost:8000').replace(/\/$/, '');
   // Chép vào clipboard NGAY trong cú bấm. Nhiều trang (kể cả TCInvest) từ chối quyền ghi clipboard kiểu mới,
@@ -768,20 +843,42 @@
     }
   }
   // tải một tour từ máy chủ theo mã rồi phát
-  async function run(id) {
+  async function run(id, opts = {}) {
     const r = await fetch(`${SERVER}/api/tours/${encodeURIComponent(id)}`);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const t = await r.json();
-    steps.length = 0; steps.push(...t.steps); setInfo();
-    play();
+    fullSteps = null; steps.length = 0; steps.push(...t.steps); setInfo();
+    start(opts);
+  }
+  // Hỏi trợ lý trên máy chủ "muốn tới màn hình nào", rồi cho người dùng chọn: dẫn từng bước hay vào thẳng.
+  async function ask(query) {
+    let a;
+    try {
+      const r = await fetch(SERVER + '/api/assist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query, layout: context().layout }) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      a = await r.json();
+    } catch (e) {
+      a = { matched: false, reason: 'Không gọi được trợ lý.' };
+    }
+    stopPlay();
+    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px'; tipMeta.textContent = '';
+    bClose.style.display = '';
+    if (!a.matched) { rich(tipText, a.reason || 'Chưa tìm thấy tour phù hợp.'); setBtns(null, null); choice = {}; return a; }
+    rich(tipText, `«${a.tour.name}»` + (a.to_step < a.tour.step_count ? ` · tới bước ${a.to_step}/${a.tour.step_count}` : '') + '\n' + a.reason);
+    setBtns(a.options[0].label, a.options[1].label);
+    const go = mode => run(a.tour.id, { mode, to: a.to_step }).catch(() => { rich(tipText, 'Không tải được tour.'); });
+    choice = { guide: () => go('guide'), direct: () => go('direct') };
+    return a;
   }
   bSave.onclick = save;
   if (!PLAYER) probe(); // biết trước nên gửi hay chép, để cú bấm đầu tiên vào nút đã làm đúng việc
   bRec.onclick = () => (recording ? stop() : record());
   bPlay.onclick = play;
-  bClr.onclick = () => { steps.length = 0; stopPlay(); };
-  bNext.onclick = () => { if (atEnd) { atEnd = false; goStart(); } else show(playing + 1); };
-  bStop.onclick = () => stopPlay();
+  bClr.onclick = () => { fullSteps = null; steps.length = 0; stopPlay(); };
+  const pick = k => { const f = choice[k]; choice = null; bClose.style.display = 'none'; if (f) f(); };
+  bNext.onclick = () => { if (choice) pick('guide'); else if (atEnd) { atEnd = false; goStart(); } else show(playing + 1); };
+  bStop.onclick = () => { if (choice) pick('direct'); else stopPlay(); };
+  bClose.onclick = () => stopPlay();
   const L = [['mousemove', onMove], ['pointerdown', onDown], ['mousedown', onUp], ['pointerup', onUp], ['mouseup', onUp], ['click', onClick]];
   for (const [n, h] of L) document.addEventListener(n, h, true);
 
@@ -793,13 +890,13 @@
   }
 
   window.TourFP = {
-    capture, captureAt: el => capture(clickableRoot(el)), isClickable, save, run,
+    capture, captureAt: el => capture(clickableRoot(el)), isClickable, save, run, start, direct, ask,
     showPanel: (on = true) => { panel.style.display = on ? 'flex' : 'none'; }, find, score, context, clickables, record, stop, play, destroy, steps,
     apiStats: () => ({ responses: api.responses, values: api.set.size }),
     isApiValue,
     state: () => ({ recording, playing, steps: steps.length, target: target ? nameOf(capture(target)) : null, tip: tip.style.display === 'block' ? tipText.textContent : '' }),
     export: () => JSON.stringify(steps, null, 2),
-    load: a => { steps.length = 0; steps.push(...a); setInfo(); },
+    load: a => { fullSteps = null; steps.length = 0; steps.push(...a); setInfo(); },
   };
 
   // vừa bị tải lại trang giữa lúc đưa về màn bắt đầu: nạp lại tour và phát tiếp (không điều hướng lần nữa)
@@ -812,7 +909,7 @@
     }
   } catch (_) { /* không đọc được thì bỏ qua */ }
 
-  // mở trang với ?tourfp=<mã>: tải tour đó từ máy chủ và phát luôn
-  const wanted = new URLSearchParams(location.search).get('tourfp');
-  if (wanted && !steps.length) run(wanted).catch(() => setInfo('Không tải được tour ' + wanted));
+  // mở trang với ?tourfp=<mã>[&mode=guide|direct][&to=<bước>]: tải tour đó từ máy chủ và chạy luôn
+  const qs = new URLSearchParams(location.search), wanted = qs.get('tourfp');
+  if (wanted && !steps.length) run(wanted, { mode: qs.get('mode'), to: qs.get('to') }).catch(() => setInfo('Không tải được tour ' + wanted));
 })();
