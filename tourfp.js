@@ -1062,8 +1062,11 @@
   }
   // Máy chủ có gọi được không: null = chưa biết. Trang chặn kết nối ra ngoài thì kết quả không đổi, nên chỉ cần dò một lần.
   let serverOk = null;
-  const setSaveMode = () => { bSave.textContent = serverOk === false ? 'Chép JSON' : 'Lưu'; };
+  // Chrome do trang quản trị mở để ghi tour: có sẵn hàm __tourfpHost, gửi tour thẳng về trang quản trị qua đó
+  const host = () => typeof window.__tourfpHost === 'function';
+  const setSaveMode = () => { bSave.textContent = host() ? 'Gửi' : serverOk === false ? 'Chép JSON' : 'Lưu'; };
   async function probe() {
+    if (host()) return setSaveMode();
     if (serverOk !== null) return;
     try { serverOk = (await fetch(SERVER + '/api/config')).ok; } catch (_) { serverOk = false; }
     setSaveMode();
@@ -1074,6 +1077,10 @@
     scrub();
     if (recording) stop();
     if (!steps.length) return setInfo('Chưa có bước nào để lưu');
+    if (host()) {
+      try { await window.__tourfpHost(JSON.stringify(steps)); return setInfo(`Đã gửi ${steps.length} bước về trang quản trị · đặt tên và lưu ở đó`); }
+      catch (_) { return setInfo('Không gửi được về trang quản trị'); }
+    }
     if (serverOk === false) {
       return setInfo(copyNow(JSON.stringify(steps)) ? 'Đã chép JSON · dán vào Thêm tour ở trang quản trị' : 'Không chép được · dùng copy(TourFP.export()) trong console');
     }

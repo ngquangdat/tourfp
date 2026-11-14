@@ -44,9 +44,13 @@ def _same_ctx(a: dict[str, Any] | None, b: dict[str, Any] | None) -> bool:
     return bool(a and b) and all((a.get(k) or "") == (b.get(k) or "") for k in ("path", "dialog", "step"))
 
 
-async def _launch(pw: Any, profile: Path, headless: bool, lib: Path | None) -> Any:
+async def _launch(pw: Any, profile: Path, headless: bool, lib: Path | None, player: bool = True, fixed_size: bool = True) -> Any:
     profile.mkdir(parents=True, exist_ok=True)
-    options: dict[str, Any] = dict(user_data_dir=str(profile), headless=headless, viewport=VIEWPORT["desktop"], bypass_csp=True)
+    options: dict[str, Any] = dict(user_data_dir=str(profile), headless=headless, bypass_csp=True)
+    if fixed_size:
+        options["viewport"] = VIEWPORT["desktop"]
+    else:  # cửa sổ tự do co giãn: kéo hẹp cửa sổ là có bố cục mobile
+        options["no_viewport"] = True
     try:
         ctx = await pw.chromium.launch_persistent_context(channel="chrome", **options)
     except Exception as first:  # không có Chrome: thử Chromium đi kèm Playwright
@@ -57,7 +61,8 @@ async def _launch(pw: Any, profile: Path, headless: bool, lib: Path | None) -> A
     if lib is not None:
         # nạp thư viện trước mã của trang, ở chế độ chỉ phát (không hiện thanh ghi tour); chỉ ở khung trên cùng
         code = lib.read_text(encoding="utf-8")
-        await ctx.add_init_script("if (window === window.top) { window.TOURFP_PLAYER = true;\n" + code + "\n}")
+        flag = "window.TOURFP_PLAYER = true;\n" if player else ""
+        await ctx.add_init_script("if (window === window.top) { " + flag + code + "\n}")
     return ctx
 
 
@@ -250,6 +255,69 @@ async def open_login(target: str, profile: Path, wait_seconds: int = 600) -> Non
                 await asyncio.wait_for(closed.wait(), timeout=wait_seconds)
             except asyncio.TimeoutError:
                 pass
+        finally:
+            try:
+                await ctx.close()
+            except Exception:
+                pass
+
+
+async def open_recorder(target: str, profile: Path, lib: Path, on_save: Callable[[str], None], wait_seconds: int = 3 * 3600) -> None:
+    """Mở Chrome (hồ sơ kiểm thử, đã đăng nhập) với thanh ghi tour nạp sẵn ở mọi trang.
+
+    Người dùng tự ghi; bấm "Gửi" trên thanh ghi thì tour được chuyển về qua on_save(json), không cần mạng hay clipboard.
+    Trả về khi người dùng đóng hết các tab, hoặc hết thời gian chờ.
+    """
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError as e:
+        raise RunnerError("Chưa cài Playwright. Chạy: pip install playwright") from e
+    async with async_playwright() as pw:
+        ctx = await _launch(pw, profile, headless=False, lib=lib, player=False, fixed_size=False)
+        closed = asyncio.Event()
+        ctx.on("close", lambda *_: closed.set())
+        await ctx.expose_binding("__tourfpHost", lambda _source, data: on_save(str(data)))
+        try:
+            page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+            await page.goto(target, wait_until="domcontentloaded", timeout=30000)
+            t0 = time.time()
+            while not closed.is_set() and time.time() - t0 < wait_seconds:
+                await asyncio.sleep(1)
+                if not ctx.pages:  # người dùng đã đóng hết các tab
+                    break
+        finally:
+            try:
+                await ctx.close()
+            except Exception:
+                pass
+
+
+async def open_player(url: str, profile: Path, lib: Path, steps: list[dict[str, Any]], start: dict[str, Any], layout: str = "",
+                      wait_seconds: int = 3 * 3600) -> None:
+    """Mở Chrome (hồ sơ kiểm thử) tại màn bắt đầu của tour và phát tour ngay, để xem tour chạy mà không phải dán mã.
+
+    start: {"mode": "guide" | "direct", "to": x}. Trả về khi người dùng đóng hết các tab, hoặc hết thời gian chờ.
+    """
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError as e:
+        raise RunnerError("Chưa cài Playwright. Chạy: pip install playwright") from e
+    async with async_playwright() as pw:
+        ctx = await _launch(pw, profile, headless=False, lib=lib, player=True)
+        closed = asyncio.Event()
+        ctx.on("close", lambda *_: closed.set())
+        try:
+            page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+            await page.set_viewport_size(VIEWPORT.get(layout or "", VIEWPORT["desktop"]))
+            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_function("() => !!window.TourFP", timeout=15000)
+            await _settle(page, 4000)
+            await page.evaluate("([s, o]) => { TourFP.load(s); TourFP.start(o); }", [steps, start])
+            t0 = time.time()
+            while not closed.is_set() and time.time() - t0 < wait_seconds:
+                await asyncio.sleep(1)
+                if not ctx.pages:
+                    break
         finally:
             try:
                 await ctx.close()

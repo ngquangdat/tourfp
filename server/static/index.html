@@ -206,6 +206,12 @@
     .t-steps .target { flex: 1; min-width: 0; }
     .t-steps .why { flex-basis: 100%; margin-left: 22px; text-align: left; }
   }
+  .rec-row { display: flex; align-items: center; gap: 10px; margin: -4px 0 16px; flex-wrap: wrap; }
+  .rec-row .meta { white-space: normal; }
+  .play-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 0 0 10px; font-size: 14px; }
+  .play-row > div { flex: 1; min-width: 0; }
+  .play-row small { display: block; color: var(--faint); font-size: 12px; }
+  #runNote { white-space: normal; min-height: 18px; margin: 0 0 12px; }
 </style>
 </head>
 <body>
@@ -260,6 +266,7 @@
 <div class="scrim" id="addSheet"><form class="sheet" id="addForm" autocomplete="off">
   <h2>Thêm tour</h2>
   <p>Dán JSON của tour vừa ghi</p>
+  <div class="rec-row"><button type="button" class="btn gray" id="fRec">Ghi tour bằng Chrome</button><span class="meta" id="fRecNote"></span></div>
   <label class="field"><span>Tên tour</span><input id="fName" maxlength="120" required placeholder="Ví dụ: Lập kế hoạch tài chính"></label>
   <label class="field"><span>Mô tả (không bắt buộc)</span><input id="fDesc" maxlength="500"></label>
   <label class="field"><span>JSON của tour</span><textarea id="fJson" required spellcheck="false" placeholder='[{"kind":"click","fp":{…}}, …]'></textarea></label>
@@ -274,11 +281,8 @@
     <div class="seg" id="runMode"><button type="button" data-mode="guide">Hướng dẫn từng bước</button><button type="button" data-mode="direct">Vào thẳng</button></div>
     <label>Dừng sau bước <input id="runTo" type="number" min="1"> <span id="runOf"></span></label>
   </div>
-  <ol>
-    <li><div>Sao chép mã chạy thử<small id="runWhat"></small></div><button class="btn primary" id="runCopy">Sao chép</button></li>
-    <li><div>Mở màn bắt đầu của tour<small id="runUrl"></small></div><a class="btn gray" id="runOpen" target="_blank" rel="noopener" style="display:inline-grid;place-items:center;text-decoration:none;color:inherit">Mở trang</a></li>
-    <li><div>Mở console của trang đó, dán mã và nhấn Enter<small>Chrome trên Mac: ⌥⌘J · Windows: Ctrl+Shift+J</small></div></li>
-  </ol>
+  <div class="play-row"><div>Mở Chrome và chạy tour<small id="runWhat"></small></div><button class="btn primary" id="runPlay" type="button">Chạy trong Chrome</button></div>
+  <p class="meta" id="runNote"></p>
   <p style="margin:0 0 14px;font-size:13px">Nếu trang đã cài sẵn thư viện, chỉ cần mở <code id="runParam" style="font:12px ui-monospace,Menlo,monospace;color:var(--code)"></code></p>
   <div class="sheet-foot"><button class="btn gray" data-close>Xong</button></div>
 </div></div>
@@ -404,15 +408,13 @@ function syncRun() {
   $('runTo').value = runOpt.to; $('runTo').max = t.step_count; $('runOf').textContent = `/ ${t.step_count}`;
   $('runWhat').textContent = runOpt.mode === 'direct' ? 'Thư viện tự làm các bước và đưa tới nơi' : 'Thư viện chỉ từng thao tác, người dùng tự bấm';
   $('runParam').textContent = `${t.start_url}?tourfp=${t.id}&${runQuery()}`;
-  $('runCopy').textContent = 'Sao chép';
 }
 function openRun(t, opt) {
   pending = t;
   runOpt = { mode: opt && opt.mode === 'direct' ? 'direct' : 'guide', to: Math.min(Math.max((opt && opt.to) || t.step_count, 1), t.step_count) };
   rich($('runName'), `«${t.name}» · ${t.step_count} bước · bố cục ${t.layout || 'không rõ'}`);
-  $('runUrl').textContent = t.start_url; $('runOpen').href = t.start_url;
   syncRun();
-  show('runSheet');
+  show('runSheet'); pollPlay();
 }
 document.querySelectorAll('#runMode button').forEach(b => b.onclick = () => { runOpt.mode = b.dataset.mode; syncRun(); });
 $('runTo').oninput = () => { const v = parseInt($('runTo').value, 10); if (v >= 1 && v <= pending.step_count) { runOpt.to = v; syncRun(); } };
@@ -443,19 +445,49 @@ $('askForm').onsubmit = async e => {
   } catch (err) { box.replaceChildren(el('div', 'err', err.message)); }
   $('askGo').disabled = false;
 };
-async function copyText(text) {
-  try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
-  const ta = el('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.append(ta); ta.select();
-  const ok = document.execCommand('copy'); ta.remove(); return ok;
+// Chạy thử: máy chủ mở Chrome (hồ sơ kiểm thử, đã đăng nhập) tại màn bắt đầu và phát tour ngay
+async function pollPlay() {
+  clearTimeout(pollPlay.t);
+  if (!$('runSheet').classList.contains('on')) return;
+  let r;
+  try { r = await api('/api/play'); } catch (_) { pollPlay.t = setTimeout(pollPlay, 3000); return; }
+  const other = tests && (tests.running || tests.login_open || tests.record_open);
+  $('runPlay').disabled = r.open || other;
+  $('runNote').textContent = r.open ? 'Chrome đang chạy tour. Đóng cửa sổ Chrome khi xem xong.'
+    : other ? 'Chrome của máy chủ đang bận (kiểm thử, đăng nhập hoặc ghi tour).'
+    : r.error ? 'Không mở được Chrome: ' + r.error : '';
+  pollPlay.t = setTimeout(pollPlay, r.open ? 1500 : 4000);
 }
-$('runCopy').onclick = async () => {
-  try {
-    const code = await (await fetch(`/api/tours/${pending.id}/snippet.js?${runQuery()}`)).text();
-    if (await copyText(code)) { $('runCopy').textContent = 'Đã chép'; toast(`Đã chép mã chạy thử (${Math.round(code.length / 1024)} KB)`); } else toast('Trình duyệt không cho chép. Hãy thử lại.');
-  } catch (e) { toast(e.message); }
+$('runPlay').onclick = async () => {
+  $('runPlay').disabled = true;
+  try { await api(`/api/tours/${pending.id}/play`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(runOpt) }); toast('Đang mở Chrome để chạy tour'); }
+  catch (e) { toast(e.message); }
+  setTimeout(pollPlay, 600);
 };
 
-$('add').onclick = () => { $('addForm').reset(); $('fErr').textContent = ''; show('addSheet'); };
+$('add').onclick = () => { $('addForm').reset(); $('fErr').textContent = ''; recSeen = 0; show('addSheet'); pollRecord(); };
+// Ghi tour bằng Chrome: máy chủ mở Chrome (hồ sơ kiểm thử) có sẵn thanh ghi. Bấm "Gửi" trên thanh ghi thì tour về đây.
+let recSeen = 0, recFrom = 0;
+async function pollRecord() {
+  clearTimeout(pollRecord.t);
+  if (!$('addSheet').classList.contains('on')) return;
+  let r;
+  try { r = await api('/api/record'); } catch (_) { pollRecord.t = setTimeout(pollRecord, 3000); return; }
+  $('fRec').disabled = r.open || (tests && (tests.running || tests.login_open || tests.play_open));
+  $('fRecNote').textContent = r.open ? 'Chrome đang mở. Ghi xong bấm Gửi trên thanh TourFP.' : r.error ? 'Không mở được Chrome: ' + r.error : '';
+  if (r.steps && r.at > recSeen) {
+    recSeen = recFrom = r.at;
+    $('fJson').value = JSON.stringify(r.steps);
+    toast(`Đã nhận tour vừa ghi · ${r.steps.length} bước`);
+    if (!$('fName').value) $('fName').focus();
+  }
+  pollRecord.t = setTimeout(pollRecord, r.open ? 1500 : 5000);
+}
+$('fRec').onclick = async () => {
+  $('fRec').disabled = true;
+  try { await api('/api/record', { method: 'POST' }); toast('Đang mở Chrome để ghi tour'); } catch (e) { toast(e.message); }
+  setTimeout(pollRecord, 600);
+};
 $('addForm').onsubmit = async e => {
   e.preventDefault(); $('fErr').textContent = '';
   let steps;
@@ -466,6 +498,7 @@ $('addForm').onsubmit = async e => {
   try {
     const t = await api('/api/tours', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('fName').value, description: $('fDesc').value, steps }) });
     hide(); openId = t.id; await load(); toast(`Đã lưu «${t.name}»`);
+    if (recFrom) { recFrom = 0; api('/api/record', { method: 'DELETE' }).catch(() => {}); } // tour vừa ghi đã lưu xong: bỏ bản nháp
   } catch (err) { $('fErr').textContent = err.message; }
   $('fSave').disabled = false;
 };
@@ -491,7 +524,7 @@ function paintDots() {
   document.querySelectorAll('.dot[data-tour]').forEach(d => { const r = by[d.dataset.tour]; d.className = 'dot' + (r ? ' ' + r.status : ''); d.title = r ? `Kiểm thử gần nhất: ${T_LABEL[r.status]}. ${r.message}` : 'Chưa kiểm thử'; });
 }
 function renderTests() {
-  const t = tests, busy = t.running || t.login_open;
+  const t = tests, busy = t.running || t.login_open || t.record_open || t.play_open;
   $('tRun').disabled = busy || !t.available; $('tLogin').disabled = busy || !t.available;
   if (document.activeElement !== $('tTime')) $('tTime').value = t.schedule.time;
   $('tOn').checked = t.schedule.enabled;
@@ -500,6 +533,8 @@ function renderTests() {
   $('tStatus').textContent = !t.available ? 'Máy chủ chưa cài Playwright (pip install playwright)'
     : t.running ? `Đang chạy… ${t.done}/${t.total}${t.current ? ' · ' + t.current : ''}`
     : t.login_open ? 'Cửa sổ đăng nhập đang mở'
+    : t.record_open ? 'Cửa sổ ghi tour đang mở'
+    : t.play_open ? 'Cửa sổ chạy thử đang mở'
     : t.last ? `Lần gần nhất ${when(t.last.started_at)} · ${t.last.trigger === 'schedule' ? 'theo lịch' : 'chạy tay'} · ${c.pass} đạt · ${c.warn} lưu ý · ${c.fail + c.error} lỗi` + (c.blocked ? ` · ${c.blocked} bị chặn` : '') + (c.need_login ? ` · ${c.need_login} cần đăng nhập` : '')
     : 'Chưa chạy lần nào';
   const note = $('tNote'); note.replaceChildren();
@@ -554,7 +589,7 @@ function renderTests() {
 async function loadTests() {
   clearTimeout(loadTests.t);
   try { tests = await api('/api/tests'); renderTests(); } catch (_) { /* thử lại ở nhịp sau */ }
-  loadTests.t = setTimeout(loadTests, tests && (tests.running || tests.login_open) ? 1500 : 30000);
+  loadTests.t = setTimeout(loadTests, tests && (tests.running || tests.login_open || tests.record_open || tests.play_open) ? 1500 : 30000);
 }
 $('tRun').onclick = async () => { try { await api('/api/tests/run', { method: 'POST' }); toast('Đã bắt đầu kiểm thử'); } catch (e) { toast(e.message); } loadTests(); };
 $('tLogin').onclick = async () => { try { await api('/api/tests/login', { method: 'POST' }); } catch (e) { toast(e.message); } loadTests(); };

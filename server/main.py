@@ -310,7 +310,14 @@ def snippet(tour_id: str, mode: Literal["guide", "direct"] = "guide", to: int | 
 
 # ---------- kiểm thử tự động ----------
 # Trạng thái lần chạy đang diễn ra (chỉ một lần chạy tại một thời điểm, vì chúng dùng chung một hồ sơ trình duyệt).
-test_state: dict[str, Any] = {"running": False, "login_open": False, "current": "", "done": 0, "total": 0, "error": None}
+test_state: dict[str, Any] = {"running": False, "login_open": False, "record_open": False, "play_open": False, "current": "", "done": 0, "total": 0, "error": None}
+# tour vừa ghi trong Chrome do trang quản trị mở, chờ người dùng đặt tên và lưu ở hộp Thêm tour
+record_draft: dict[str, Any] = {"steps": None, "at": 0.0}
+
+
+def _browser_busy() -> bool:
+    """Hồ sơ trình duyệt chỉ mở được ở một nơi: đang kiểm thử, hoặc đang mở cửa sổ đăng nhập, ghi tour hay chạy thử."""
+    return bool(test_state["running"] or test_state["login_open"] or test_state["record_open"] or test_state["play_open"])
 _tasks: set[asyncio.Task] = set()  # giữ tham chiếu để tác vụ nền không bị thu hồi giữa chừng
 
 
@@ -334,7 +341,7 @@ def _counts(results: list[dict[str, Any]]) -> dict[str, int]:
 
 async def do_test_run(trigger: str) -> None:
     """Chạy kiểm thử mọi tour và lưu kết quả. trigger: 'manual' (bấm nút) hoặc 'schedule' (lịch hằng ngày)."""
-    if test_state["running"] or test_state["login_open"]:
+    if _browser_busy():
         return
     with closing(db()) as conn:
         tours = _all_tours(conn)
@@ -366,7 +373,7 @@ async def do_test_run(trigger: str) -> None:
 
 
 async def do_login() -> None:
-    if test_state["running"] or test_state["login_open"]:
+    if _browser_busy():
         return
     test_state.update(login_open=True, error=None)
     try:
@@ -375,6 +382,39 @@ async def do_login() -> None:
         test_state["error"] = f"{type(e).__name__}: {e}"[:400]
     finally:
         test_state["login_open"] = False
+
+
+def _receive_recording(data: str) -> None:
+    try:
+        steps = json.loads(data)
+    except ValueError:
+        return
+    if isinstance(steps, list) and steps:
+        record_draft.update(steps=steps, at=time.time())
+
+
+async def do_record() -> None:
+    if _browser_busy():
+        return
+    test_state.update(record_open=True, error=None)
+    try:
+        await runner.open_recorder(TARGET, PROFILE, LIB, _receive_recording)
+    except Exception as e:
+        test_state["error"] = f"{type(e).__name__}: {e}"[:400]
+    finally:
+        test_state["record_open"] = False
+
+
+async def do_play(url: str, steps: list[dict[str, Any]], start: dict[str, Any], layout: str) -> None:
+    if _browser_busy():
+        return
+    test_state.update(play_open=True, error=None)
+    try:
+        await runner.open_player(url, PROFILE, LIB, steps, start, layout)
+    except Exception as e:
+        test_state["error"] = f"{type(e).__name__}: {e}"[:400]
+    finally:
+        test_state["play_open"] = False
 
 
 async def scheduler() -> None:
@@ -387,7 +427,7 @@ async def scheduler() -> None:
                 last = get_setting(conn, "test_schedule_last", "")
             now = datetime.datetime.now()
             today = now.strftime("%Y-%m-%d")
-            if sched["enabled"] and last != today and now.strftime("%H:%M") >= sched["time"] and not (test_state["running"] or test_state["login_open"]):
+            if sched["enabled"] and last != today and now.strftime("%H:%M") >= sched["time"] and not (_browser_busy()):
                 with closing(db()) as conn, conn:
                     set_setting(conn, "test_schedule_last", today)
                 _spawn(do_test_run("schedule"))
@@ -425,15 +465,59 @@ async def tests_overview() -> dict[str, Any]:
 
 @app.post("/api/tests/run", status_code=202)
 async def tests_run() -> dict[str, Any]:
-    if test_state["running"] or test_state["login_open"]:
+    if _browser_busy():
         raise HTTPException(409, "Đang có một lần chạy hoặc cửa sổ đăng nhập đang mở")
     _spawn(do_test_run("manual"))
     return {"started": True}
 
 
+class PlayIn(BaseModel):
+    mode: Literal["guide", "direct"] = "guide"
+    to: int | None = Field(default=None, ge=1, le=MAX_STEPS)
+
+
+@app.post("/api/tours/{tour_id}/play", status_code=202)
+async def tour_play(tour_id: str, body: PlayIn) -> dict[str, Any]:
+    """Chạy thử: máy chủ mở Chrome tại màn bắt đầu của tour và phát tour ngay."""
+    if _browser_busy():
+        raise HTTPException(409, "Chrome của máy chủ đang được dùng (kiểm thử, đăng nhập, ghi tour hoặc chạy thử)")
+    with closing(db()) as conn:
+        row = get_row(conn, tour_id)
+    last = min(body.to or row["step_count"], row["step_count"])
+    _spawn(do_play(TARGET + row["start_path"], json.loads(row["steps"]), {"mode": body.mode, "to": last}, row["layout"] or ""))
+    return {"opened": True}
+
+
+@app.get("/api/play")
+async def play_status() -> dict[str, Any]:
+    return {"open": test_state["play_open"], "error": test_state["error"]}
+
+
+@app.post("/api/record", status_code=202)
+async def record_open() -> dict[str, Any]:
+    """Mở Chrome có sẵn thanh ghi tour. Ghi xong bấm "Gửi" trên thanh ghi, tour hiện ở hộp Thêm tour."""
+    if _browser_busy():
+        raise HTTPException(409, "Chrome của máy chủ đang được dùng (kiểm thử, đăng nhập hoặc đang ghi tour)")
+    _spawn(do_record())
+    return {"opened": True}
+
+
+@app.get("/api/record")
+async def record_status() -> dict[str, Any]:
+    steps = record_draft["steps"]
+    return {"open": test_state["record_open"], "error": test_state["error"], "steps": steps, "at": record_draft["at"],
+            "layout": ((steps[0].get("fp") or {}).get("ctx") or {}).get("layout", "") if steps else ""}
+
+
+@app.delete("/api/record", status_code=204)
+async def record_clear() -> Response:
+    record_draft.update(steps=None, at=0.0)
+    return Response(status_code=204)
+
+
 @app.post("/api/tests/login", status_code=202)
 async def tests_login() -> dict[str, Any]:
-    if test_state["running"] or test_state["login_open"]:
+    if _browser_busy():
         raise HTTPException(409, "Đang có một lần chạy hoặc cửa sổ đăng nhập đang mở")
     _spawn(do_login())
     return {"opened": True}

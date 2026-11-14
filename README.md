@@ -85,8 +85,11 @@ uvicorn main:app --app-dir server --host 127.0.0.1 --port 8000
 
 Mở <http://localhost:8000>:
 
-- **Thêm tour** — đặt tên rồi dán JSON lấy bằng `copy(TourFP.export())`, hoặc chọn file `.json`.
-- **Chạy thử** — chép một đoạn mã gồm cả thư viện lẫn tour; mở màn bắt đầu của tour, dán vào console là tour phát ngay.
+- **Thêm tour** — bấm **Ghi tour bằng Chrome**: máy chủ mở Chrome (hồ sơ kiểm thử, đã đăng nhập) có sẵn thanh ghi ở mọi
+  trang. Ghi xong bấm **Gửi** trên thanh ghi, tour tự hiện trong hộp Thêm tour; đặt tên rồi lưu. Kéo hẹp cửa sổ Chrome
+  để ghi tour cho bố cục mobile. Cũng có thể dán JSON chép từ thanh ghi trên trang khác.
+- **Chạy thử** — bấm **Chạy trong Chrome**: máy chủ mở Chrome (hồ sơ kiểm thử, đã đăng nhập) tại màn bắt đầu của tour,
+  nạp thư viện và phát tour ngay theo chế độ và bước dừng đã chọn. Đoạn mã chạy thử vẫn lấy được ở `/api/tours/{id}/snippet.js`.
   Khi chạy thử, thanh ghi tour không hiện (chế độ chỉ phát); gọi `TourFP.showPanel()` nếu cần hiện lại.
 - **Xoá**, **Tải JSON**, và xem danh sách bước của từng tour.
 - **Sửa tên**: bấm vào tên một bước để đặt tên hiển thị cho bước đó (để trống thì dùng lại tên tự lấy từ giao diện); nút **Sửa tên tour** đổi tên và mô tả của tour. Tên đã đặt được dùng trong lời hướng dẫn khi phát và trong việc tìm tour của trợ lý.
