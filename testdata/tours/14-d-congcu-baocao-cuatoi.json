@@ -1,0 +1,35 @@
+{
+  "name": "Desktop: Công cụ (panel trượt phải) → Báo cáo của tôi (hộp thoại) → mẫu báo cáo thứ 2 → mẫu thứ 1 → quay lại",
+  "layout": "desktop",
+  "start": "/home",
+  "covers": [
+    "menu-bấm/panel-trượt",
+    "hộp-thoại",
+    "nth(dòng-danh-sách)",
+    "nút-icon",
+    "after-đổi-trạng-thái"
+  ],
+  "recorded": "TourFP.record + chuột thật; phát lại bằng play() + chuột thật. Không bấm Sửa/Chia sẻ/Thêm mới",
+  "steps": [
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Công cụ","segs":["Công cụ"],"icon":"Toolbox","comp":["app-toolbar","app-root"],"anchor":"Tìm tính năng, mã CK......","anchorSkip":0,"pos":[4,8],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"hint":""},"after":{"path":"/home","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Báo cáo của tôi","segs":["Báo cáo của tôi"],"icon":"assets/images/menu-icons/icon-sprites-other.svg#report","comp":["app-toolbox","app-root"],"anchor":"Tín hiệu đầu tư","anchorSkip":0,"pos":[1,3],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"hint":""},"after":{"path":"/home","layout":"desktop","dialog":"app-report-management","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Cập nhật: #/#/# #:#:#","segs":["Cập nhật: #/#/# #:#:#"],"mixed":true,"dyn":1,"cover":0.27,"comp":["app-report-management"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"desktop","dialog":"app-report-management","step":""},"twins":2,"sig":"div<div<div<div<div<div","nth":1,"role":"","soft":[],"exact":"","key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"app-report-management","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Cập nhật: #/#/# #:#:#","segs":["Cập nhật: #/#/# #:#:#"],"mixed":true,"dyn":1,"cover":0.21,"comp":["app-report-management"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"desktop","dialog":"app-report-management","step":""},"twins":2,"sig":"div<div<div<div<div<div","nth":0,"role":"","soft":[],"exact":"","key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"app-report-management","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"button","icon":"arrow_back","comp":["app-report-management"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"desktop","dialog":"app-report-management","step":""},"role":"","label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"anchor":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"","step":""}}
+  ],
+  "expect": [
+    "Tô sáng 'Công cụ' ở thanh trên",
+    "Tô sáng 'Báo cáo của tôi' trong panel",
+    "Tô sáng mẫu báo cáo thứ 2 trong danh sách",
+    "Tô sáng mẫu báo cáo thứ 1",
+    "Tô sáng nút quay lại (icon)"
+  ],
+  "observed": [
+    "OK: 100%",
+    "OK: 100%",
+    "OK: thứ 2/3 (lúc ghi nhóm 3 mục cùng dạng 'Cập nhật: …', lúc phát cũng 3)",
+    "OK: thứ 1/3",
+    "OK: 100%; 'Xong tour · 5 bước'"
+  ],
+  "notes": "Nhãn của mục danh sách là dòng 'Cập nhật: <ngày giờ>' (chữ số thành #) vì tên mẫu là giá trị API → nhận diện theo thứ tự. Lúc ghi, cú bấm vào 'Thông báo' rơi vào tiêu đề panel 'Công cụ' đang mở (đã bỏ). Quét hộp thoại Báo cáo của tôi: 109 phần tử, tự khớp 102/0/7/0; sau tải lại 48/54/7/0 nhưng hộp thoại mở sẵn mẫu báo cáo khác (app nhớ mẫu xem cuối) nên phần lớn 'sai' là ô nhập không nhãn của nội dung báo cáo khác — không so được. | Vòng 3: không ghi lại; fp v3, đã thêm đủ trường mặc định. Bước 1 (Công cụ) tìm đúng 100% trên /home."
+}

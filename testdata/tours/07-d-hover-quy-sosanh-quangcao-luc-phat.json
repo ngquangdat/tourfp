@@ -1,0 +1,32 @@
+{
+  "name": "Desktop: khối Hiệu quả đầu tư (Phái sinh → Cơ sở → 3M → 1Y); quảng cáo có sẵn lúc phát và bật giữa bước",
+  "layout": "desktop",
+  "start": "/home",
+  "covers": [
+    "tab",
+    "nhãn-có-số(exact)",
+    "nth",
+    "popup-quảng-cáo-lúc-phát",
+    "popup-giữa-tour"
+  ],
+  "recorded": "Vòng 3 (fp v4): TourFP.record + chuột thật, không có quảng cáo lúc ghi. Luồng vòng 2 (rê Quỹ → So sánh) không ghi lại được: hộp thoại So sánh không mở vì một số file JS của app trả 403 trong phiên này (xem báo cáo vòng 3), nên đổi sang khối Hiệu quả đầu tư ở trang chủ",
+  "steps": [
+    {"kind":"click","fp":{"v":4,"tag":"div","label":"Phái sinh","segs":["Phái sinh"],"comp":["app-home-stock-asset-chart","app-home-item-base","app-home"],"anchor":"Cơ sở","anchorSkip":0,"pos":[1,2],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"twins":2,"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":4,"tag":"div","label":"Cơ sở","segs":["Cơ sở"],"comp":["app-home-stock-asset-chart","app-home-item-base","app-home"],"anchorSkip":0,"pos":[0,2],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":4,"tag":"button","label":"#M","segs":["#M"],"exact":"3M","mixed":true,"comp":["app-home-widget-stock-asset-chart","app-home-stock-asset-chart","app-home-item-base"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"twins":8,"sig":"button<div<div<div<mat-card<app-home-widget-stock-asset-chart","nth":1,"role":"","soft":[],"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":4,"tag":"button","label":"#Y","segs":["#Y"],"exact":"1Y","mixed":true,"comp":["app-home-widget-stock-asset-chart","app-home-stock-asset-chart","app-home-item-base"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"twins":2,"sig":"button<div<div<div<mat-card<app-home-widget-stock-asset-chart","nth":0,"role":"","soft":[],"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"","step":""}}
+  ],
+  "expect": [
+    "Có quảng cáo khi bấm Phát: tooltip 'Hãy đóng hộp thoại…', không chặn, không tải lại; đóng xong tự phát từ bước 1",
+    "Quảng cáo bật lên lúc đang ở bước 2: chuyển sang trạng thái chờ; đóng xong tự tiếp tục đúng bước 2",
+    "Tô sáng nút 3M của khối",
+    "Tô sáng nút 1Y của khối"
+  ],
+  "observed": [
+    "OK: ~0.9 s sau khi bấm Phát tooltip 'Hãy đóng hộp thoại đang che màn hình, tour sẽ tự tiếp tục.', URL không đổi sau 5 s (vòng 2: tải lại sau ~3 s). Bấm Đóng của quảng cáo (cú bấm đi qua) → ~1.2 s sau tự phát bước 1 'Phái sinh' 100%",
+    "OK: quảng cáo chèn khi đang ở bước 2 → ~1.1 s sau chuyển sang trạng thái chờ (vòng 2: kẹt); bấm Đóng → phát tiếp đúng 'Bước 2/4: Cơ sở' (không quay về bước 1)",
+    "OK: ô sáng đúng nút 3M (ảnh chụp); find() độc lập trả 'thứ 2/6' (lúc ghi nhóm 9) — trúng nhờ thứ tự, xem báo cáo",
+    "OK: chữ «1Y»; 'Xong tour · 4 bước'"
+  ],
+  "notes": "Thay luồng so với vòng 2 vì hộp thoại So sánh quỹ không mở được trong phiên này."
+}

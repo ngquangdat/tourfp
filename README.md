@@ -128,6 +128,38 @@ TourFP.start({ mode: 'direct', to: 3 });  // chạy tour đang nạp: vào thẳ
 Chế độ vào thẳng tự bấm thay người dùng. Với tour đi qua thao tác có hậu quả (đặt lệnh, xác nhận giao dịch), nên đặt `to` dừng
 trước các bước đó, hoặc chỉ đưa ra lựa chọn hướng dẫn từng bước.
 
+### Kiểm thử tự động
+
+Mục **Kiểm thử tự động** trên trang quản trị chạy lại mọi tour trong một trình duyệt thật và cho biết tour nào còn đúng,
+tour nào gãy ở bước nào. Bấm **Chạy kiểm thử** để chạy ngay, hoặc bật **Chạy hằng ngày lúc** để máy chủ tự chạy mỗi ngày
+một lần (máy chủ phải đang bật vào giờ đó; bật muộn hơn thì chạy bù ngay).
+
+```bash
+pip install playwright
+```
+
+Bộ chạy (`server/runner.py`) dùng Chrome có sẵn trên máy qua Playwright, nạp `tourfp.js` trước mã của trang, rồi với từng
+bước: hỏi thư viện toạ độ của đích và rê hoặc bấm vào đó bằng chuột thật. Kết quả của mỗi tour:
+
+| Kết quả | Nghĩa |
+|---|---|
+| Đạt | Mọi bước được chạy đều tìm thấy đích |
+| Lưu ý | Đạt, nhưng có bước nhiều ứng viên ngang điểm, hoặc sau cú bấm màn hình không giống lúc ghi |
+| Lỗi | Một bước không tìm thấy đích; kèm số bước và lý do |
+| Cần đăng nhập | Trình duyệt kiểm thử chưa đăng nhập hoặc phiên đã hết |
+| Bị chặn | Trang đích hiện màn xác minh chống bot nên trình duyệt tự động không vào được |
+
+**Bấm thật.** Bộ chạy bấm thật trên trang và đi hết mọi bước của tour, kể cả bước đặt lệnh hay xác nhận nếu tour có. Tour
+được kiểm duyệt lúc tạo; tour nào kết thúc bằng thao tác có hậu quả thì nên chạy trên môi trường thử hoặc tài khoản thử.
+
+**Đăng nhập.** Trình duyệt kiểm thử dùng một hồ sơ riêng trong `server/data/browser-profile`. Bấm **Mở trình duyệt để đăng
+nhập**, tự đăng nhập trong cửa sổ hiện ra rồi đóng nó; bộ chạy không bao giờ nhập tài khoản hay mật khẩu.
+
+**Chống bot.** Nếu trang đích chặn trình duyệt tự động (ví dụ màn "Just a moment…"), lần chạy được ghi là "Bị chặn" và bộ
+chạy không tìm cách vượt qua. Khi đó cần trỏ `TOURFP_TARGET` tới một địa chỉ không chặn trình duyệt tự động, như môi trường
+thử của app, hoặc nhờ bên vận hành đưa máy kiểm thử vào danh sách cho phép. **Cửa sổ Chrome.** Mặc định bộ chạy mở Chrome có cửa sổ để bạn xem nó thao tác từng bước. Bỏ ô **Hiện cửa sổ Chrome khi chạy**
+trên trang quản trị để chạy ẩn (hợp với lịch chạy hằng ngày). `TOURFP_TEST_HEADLESS=1` đổi mặc định ban đầu thành chạy ẩn.
+
 ### Nối với mô hình AI
 
 Mặc định trợ lý tìm bằng so khớp từ khoá, không gọi AI. Bật AI bằng biến môi trường `TOURFP_AI`:

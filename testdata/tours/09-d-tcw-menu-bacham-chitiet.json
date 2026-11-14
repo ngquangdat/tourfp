@@ -1,0 +1,37 @@
+{
+  "name": "Desktop: TCWealth → tab Đã lưu → nút ⋮ của kế hoạch thứ 2 → Xem chi tiết → 1Y → đóng (X)",
+  "layout": "desktop",
+  "start": "/tcw",
+  "covers": [
+    "tab",
+    "nút-icon(SVG-hình-tròn)",
+    "nth",
+    "menu-bấm",
+    "hộp-thoại",
+    "nhãn-có-số(exact)",
+    "đóng-hộp-thoại"
+  ],
+  "recorded": "TourFP.record + chuột thật. Phát lại bằng TourFP.locate từng bước + chuột thật. Ca vòng 1 thất bại (⋮ chọn nhầm icon ✓)",
+  "steps": [
+    {"kind":"info","fp":{"v":3,"tag":"div","label":"Đã lưu","segs":["Đã lưu"],"comp":["app-tcw-dashboard-plan","app-tcw-dashboard","app-tcw"],"anchor":"Đang thực hiện","anchorSkip":0,"pos":[2,7],"ctx":{"path":"/tcw","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""},"after":{"path":"/tcw","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"tcbs-icon","icon":"g:3uxww4","comp":["app-tcw-plan-list","app-tcw-dashboard-plan","app-tcw-dashboard"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/tcw","layout":"desktop","dialog":"","step":""},"twins":5,"sig":"tcbs-icon<div<div<div<div<div","nth":1,"role":"","label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"anchor":"","hint":""},"after":{"path":"/tcw","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"button","role":"menuitem","label":"Xem chi tiết","segs":["Xem chi tiết"],"anchorSkip":0,"pos":[0,4],"ctx":{"path":"/tcw","layout":"desktop","dialog":"","step":""},"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","comp":[],"anchor":"","hint":""},"after":{"path":"/tcw","layout":"desktop","dialog":"app-tcw-create-plan-step-5","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"#Y","segs":["#Y"],"exact":"1Y","mixed":true,"comp":["app-investment-performance-chart","app-tcw-create-plan-step-5"],"anchorSkip":0,"pos":[5,8],"ctx":{"path":"/tcw","layout":"desktop","dialog":"app-tcw-create-plan-step-5","step":""},"twins":6,"sig":"div<div<div<app-investment-performance-chart<div<div","nth":0,"role":"","soft":[],"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/tcw","layout":"desktop","dialog":"app-tcw-create-plan-step-5","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"tcbs-icon","key":{"name":"Close"},"icon":"Close","comp":["app-tcw-create-plan-step-5"],"anchor":"Của tôi","anchorSkip":1,"pos":[0,1],"hint":"app-tcw-create-plan-step-5 tcbs-icon[name=\"Close\"]","ctx":{"path":"/tcw","layout":"desktop","dialog":"app-tcw-create-plan-step-5","step":""},"role":"","label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"attr":{}},"after":{"path":"/tcw","layout":"desktop","dialog":"","step":""}}
+  ],
+  "expect": [
+    "Tô sáng tab Đã lưu (bấm được)",
+    "Tô sáng nút ⋮ của thẻ kế hoạch thứ 2",
+    "Tô sáng 'Xem chi tiết' trong menu",
+    "Tô sáng nút 1Y của biểu đồ Hiệu quả đầu tư",
+    "Tô sáng nút X đóng hộp thoại"
+  ],
+  "observed": [
+    "OK (locate): 100%. Nhưng lúc ghi bước này là info (tab không có cursor:pointer) → khi play() bấm vào sẽ bị chặn",
+    "OK (locate): thứ 2/4, đúng ⋮ của thẻ thứ 2 (icon 'g:' — đã sửa so với vòng 1)",
+    "OK (locate): 100%",
+    "OK (locate): chữ «1Y», 100%",
+    "OK (locate): qua hint, 100%; hộp thoại đóng"
+  ],
+  "notes": "Lúc ghi, 2 cú bấm đầu vào 1Y và X rơi trúng khung chứa vì hộp thoại đang phóng to (animation) — đã bỏ 2 bước info đó. Quét /tcw: 139 phần tử, tự khớp 133/0/6/0, sau tải lại 133/0/6/0. Quét hộp thoại chi tiết kế hoạch: 85 phần tử, tự khớp 83/0/2/0 (vòng 1: 52/6/1/0). | Vòng 3: không ghi lại (ngoài danh sách yêu cầu); fp v3, đã thêm đủ trường mặc định."
+}

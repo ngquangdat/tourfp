@@ -1,0 +1,37 @@
+{
+  "name": "Desktop: rê Cổ phiếu → Bảng giá cổ phiếu → (quảng cáo bật giữa tour, đóng) → sàn HNX → mã AMC",
+  "layout": "desktop",
+  "start": "/home",
+  "covers": [
+    "hover-menu",
+    "after-đổi-màn",
+    "popup-quảng-cáo-giữa-tour(lúc-ghi)",
+    "tab",
+    "nth",
+    "dòng-bảng-API",
+    "info(Alt-click)"
+  ],
+  "recorded": "Vòng 3 (fp v4): TourFP.record + chuột thật; hộp thoại quảng cáo giả chèn bằng JS sau khi sang /tc-price. Bắt đầu từ /home vì tải thẳng /tc-price trả 403 trong phiên này. Bước AMC ghi bằng Alt-click (info) để không mở bảng đặt lệnh",
+  "steps": [
+    {"kind":"hover","fp":{"v":4,"tag":"div","label":"Cổ phiếu Cổ phiếu","segs":["Cổ phiếu","Cổ phiếu"],"cover":0.42,"icon":"assets/images/menu-icons/icon-sprites-other.svg#menu_icon_stock","comp":["app-menu-sidebar","app-root"],"anchor":"Tiền","anchorSkip":0,"pos":[1,7],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"key":{},"attr":{},"hint":""}},
+    {"kind":"click","fp":{"v":4,"tag":"div","label":"Bảng giá cổ phiếu","segs":["Bảng giá cổ phiếu"],"anchor":"Giao dịch","anchorSkip":0,"pos":[0,2],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","comp":[],"hint":""},"after":{"path":"/tc-price","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":4,"tag":"button","label":"Đóng quảng cáo","attr":{"aria-label":"Đóng quảng cáo"},"comp":["app-promo-popup"],"anchor":"Quảng cáo thử nghiệm (giả lập)","anchorSkip":0,"pos":[0,1],"ctx":{"path":"/tc-price","layout":"desktop","dialog":"app-promo-popup","step":""},"role":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"icon":"","hint":""},"after":{"path":"/tc-price","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":4,"tag":"div","label":"HNX","segs":["HNX"],"comp":["app-tc-price-tab-floor","app-tc-price","app-root"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/tc-price","layout":"desktop","dialog":"","step":""},"twins":3,"sig":"div<div<div<div<div<div","nth":1,"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/tc-price","layout":"desktop","dialog":"","step":""}},
+    {"kind":"info","fp":{"v":4,"tag":"span","label":"AMC","segs":["AMC"],"comp":["app-tc-price-table-floor","app-tc-price","app-root"],"anchor":"ALT","anchorSkip":0,"pos":[0,1],"ctx":{"path":"/tc-price","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""}}
+  ],
+  "expect": [
+    "Tô sáng mục Cổ phiếu ở menu trái; rê chuột thì sang bước 2",
+    "Tô sáng 'Bảng giá cổ phiếu'; bấm thì sang /tc-price",
+    "Lúc phát không có quảng cáo: bỏ qua bước đóng quảng cáo",
+    "Tô sáng tab sàn HNX (không phải chỉ số HNX ở đầu trang)",
+    "Tô sáng mã AMC (dòng bảng), nút Kết thúc"
+  ],
+  "observed": [
+    "OK: 100% scan; rê chuột thật → sang bước 2",
+    "OK: 100%; bấm thật → /tc-price",
+    "OK: bỏ qua, nhảy thẳng tới bước 4 trong ~4 s sau khi đổi trang",
+    "OK: 'thứ 2/2' (lúc ghi nhóm 3 — bản sao ngoài màn bị loại), đúng tab sàn ở (233,131); bấm thật → bảng HNX",
+    "OK: 100% scan; 'Bước 5/5' với nút Kết thúc"
+  ],
+  "notes": "Vòng 3 chạy hết không cần can thiệp. Mã AMC được ghi là nhãn thường (segs), không phải loose: trên desktop ô mã có anchor 'ALT' nên không bị coi là giá trị API; nếu thứ tự bảng đổi thì vẫn tìm theo chữ AMC."
+}

@@ -1,0 +1,36 @@
+{
+  "name": "Desktop: avatar → Hệ thống → Hiển thị & Cài đặt → Thông báo → đóng (chỉ xem)",
+  "layout": "desktop",
+  "start": "/home",
+  "covers": [
+    "menu-bấm",
+    "hộp-thoại",
+    "cài-đặt/hồ-sơ(chỉ-xem)",
+    "nút-icon",
+    "phần-tử-không-nhãn",
+    "rà-dữ-liệu-cá-nhân"
+  ],
+  "recorded": "TourFP.record + chuột thật. ĐÃ RÀ: bước 1 lúc ghi có anchor là HỌ TÊN khách hàng (chữ đứng cạnh avatar) — đã xoá anchor trong file này. Lúc phát dùng đúng bản đã xoá",
+  "steps": [
+    {"kind":"info","fp":{"v":3,"tag":"div","comp":["app-toolbar","app-root"],"anchor":"","anchorSkip":0,"pos":[1,2],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"twins":3,"role":"","label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Hệ thống","segs":["Hệ thống"],"comp":["app-menu-profiles"],"anchor":"Thông báo","anchorSkip":0,"pos":[0,2],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Hiển thị & Cài đặt","segs":["Hiển thị & Cài đặt"],"comp":["app-menu-profiles","app-dialog-menu-profiles"],"anchor":"Bảo mật","anchorSkip":0,"pos":[0,2],"ctx":{"path":"/home","layout":"desktop","dialog":"app-dialog-menu-profiles","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"app-dialog-menu-profiles","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Thông báo","segs":["Thông báo"],"comp":["app-menu-profiles","app-dialog-menu-profiles"],"anchor":"Hiển thị & Cài đặt","anchorSkip":0,"pos":[0,2],"ctx":{"path":"/home","layout":"desktop","dialog":"app-dialog-menu-profiles","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"app-dialog-menu-profiles","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"mat-icon","role":"img","icon":"close","comp":["app-m-profile-notification","app-menu-profiles","app-dialog-menu-profiles"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"desktop","dialog":"app-dialog-menu-profiles","step":""},"label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"anchor":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"","step":""}}
+  ],
+  "expect": [
+    "Tô sáng avatar; bấm được để mở menu",
+    "Tô sáng 'Hệ thống' trong menu avatar",
+    "Tô sáng mục 'Hiển thị & Cài đặt' trong hộp thoại",
+    "Tô sáng mục 'Thông báo'",
+    "Tô sáng nút X đóng hộp thoại"
+  ],
+  "observed": [
+    "SAI: sau khi xoá anchor (họ tên), fp avatar không còn gì để nhận diện (div không chữ, không icon, twins=3 nhưng không có nth) → tô sáng ô tìm kiếm, khớp 100%. Lúc ghi bước này cũng bị xếp info (avatar không có cursor:pointer). Bản gốc (có anchor họ tên) tìm 'ok' nhưng không được lưu vì là dữ liệu cá nhân",
+    "OK: 100% (người dùng tự mở menu avatar khi bước 2 đang chờ)",
+    "OK: 100%",
+    "OK: 100%",
+    "OK: 100%; 'Xong tour · 5 bước'"
+  ],
+  "notes": "Không bấm Đăng xuất, Tối ưu bộ nhớ, Khôi phục cài đặt gốc, Quản lý thiết bị, Tiểu khoản mặc định, công tắc nào. Quét hộp thoại hồ sơ (mục Thông báo): 42 phần tử, tự khớp 41/0/1/0; sau tải lại hộp thoại mở mục khác nên 27/1/1/13 (không so được); 1 'sai' là phần tử chứa họ tên. | Vòng 3: không ghi lại được cả luồng (hộp thoại hồ sơ cần file JS bị 403). Bước 1 (avatar) giờ không có tín hiệu nào (anchor họ tên đã xoá) và fp trỏ vào khối 'main-group' 745×60 chứa cả ô tìm kiếm, Công cụ, chuông và avatar — clickableRoot leo quá cao; v4 ghi lại cho kết quả y hệt. Kiểm scrub(): anchor họ tên KHÔNG bị xoá khi xuất vì phản hồi API hồ sơ đến trước khi thư viện được nạp; khi giá trị có trong phản hồi API thì export() xoá đúng."
+}

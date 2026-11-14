@@ -1,0 +1,48 @@
+{
+  "name": "Mobile: Menu (drawer) → ô tìm tính năng → gõ rồi xoá → Đóng → Nộp tiền (chỉ mở màn) → accordion → tab ngân hàng",
+  "layout": "mobile",
+  "start": "/home",
+  "covers": [
+    "drawer",
+    "input",
+    "hộp-thoại",
+    "accordion",
+    "tab",
+    "info",
+    "alt-click-info",
+    "nth",
+    "màn-nộp-tiền-chỉ-xem"
+  ],
+  "recorded": "TourFP.record + chuột thật. Lúc ghi gõ 'nộp tiền' vào ô tìm kiếm rồi xoá hết. Đã bỏ 2 bước input trùng do triple-click sinh ra",
+  "steps": [
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Menu","segs":["Menu"],"icon":"d:vx3fwq","comp":["app-footer-bar","app-root"],"anchorSkip":0,"pos":[1,2],"ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"twins":1,"sig":"div<div<div<div<div<div","nth":1,"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"anchor":"","hint":""},"after":{"path":"/home","layout":"mobile","dialog":"","step":""}},
+    {"kind":"info","fp":{"v":3,"tag":"div","comp":["app-left-menu","app-root"],"anchor":"Tìm tính năng","anchorSkip":0,"pos":[1,2],"ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"twins":1,"role":"","label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""}},
+    {"kind":"input","fp":{"v":3,"tag":"input","label":"Tìm tính năng, mã CK...","key":{"formcontrolname":"searchingInput"},"attr":{"placeholder":"Tìm tính năng, mã CK..."},"comp":["app-home-searching-dialog"],"anchorSkip":0,"pos":[0,1],"hint":"app-home-searching-dialog input[formcontrolname=\"searchingInput\"]","ctx":{"path":"/home","layout":"mobile","dialog":"app-home-searching-dialog","step":""},"role":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"icon":"","anchor":""}},
+    {"kind":"info","fp":{"v":3,"tag":"span","label":"Đóng","segs":["Đóng"],"comp":["app-home-searching-dialog"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"mobile","dialog":"app-home-searching-dialog","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""}},
+    {"kind":"info","fp":{"v":3,"tag":"span","label":"Nộp tiền","segs":["Nộp tiền"],"comp":["app-left-menu","app-root"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""}},
+    {"kind":"click","fp":{"v":3,"tag":"mat-expansion-panel-header","role":"button","label":"Chuyển khoản từ ngân hàng Chuyển khoản tiền từ bất kỳ ngân h","segs":["Chuyển khoản từ ngân hàng","Chuyển khoản tiền từ bất kỳ ngân hàng nào để nộp vào TKCK TC"],"cover":0.97,"comp":["app-payment"],"anchor":"Quét QR","anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"mobile","dialog":"app-payment","step":""},"soft":[],"exact":"","mixed":false,"dyn":0,"key":{},"attr":{},"icon":"","hint":""},"after":{"path":"/home","layout":"mobile","dialog":"app-payment","step":""}},
+    {"kind":"info","fp":{"v":3,"tag":"h1","label":"Nộp tiền","segs":["Nộp tiền"],"comp":["app-payment"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"mobile","dialog":"app-payment","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""}},
+    {"kind":"click","fp":{"v":3,"tag":"button","label":"BIDV","segs":["BIDV"],"icon":"202.png","comp":["app-payment-bank","app-payment"],"anchor":"Techcombank","anchorSkip":0,"pos":[1,2],"ctx":{"path":"/home","layout":"mobile","dialog":"app-payment","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"hint":""},"after":{"path":"/home","layout":"mobile","dialog":"app-payment","step":""}}
+  ],
+  "expect": [
+    "Tô sáng nút Menu ở thanh dưới đang hiện",
+    "Tô sáng ô tìm tính năng trong drawer; bấm được để mở ô tìm kiếm",
+    "Tô sáng ô nhập tìm kiếm, nút Tiếp",
+    "Tô sáng nút Đóng; bấm được để đóng ô tìm kiếm",
+    "Tô sáng mục Nộp tiền trong drawer; bấm được để mở màn Nộp tiền",
+    "Tô sáng tiêu đề accordion 'Chuyển khoản từ ngân hàng'",
+    "Tô sáng tiêu đề 'Nộp tiền' (Alt+bấm lúc ghi), nút Tiếp",
+    "Tô sáng nút BIDV"
+  ],
+  "observed": [
+    "LỖI: not-found (need 2/have 1: thanh dưới chỉ còn 1 bản sau khi tải lại) → play() bỏ qua, bắt đầu ở bước 2",
+    "LỖI: bước 2 lúc đầu tô sáng ô tìm kiếm trong drawer đang đóng (x≈-414, ngoài màn). Sau khi tự mở Menu và Phát lại: đúng (x≈386). Bước bị ghi là info (không có cursor:pointer) nên bấm vào bị chặn",
+    "BỎ QUA: ô tìm kiếm không mở; sau khoảng 3 s lookahead tìm thấy bước 5 và nhảy tới",
+    "BỎ QUA (cùng lần nhảy)",
+    "Đúng phần tử nhưng info → bấm bị chặn; Tiếp → bước 6 báo 'không tìm thấy … Cần ở màn: /home app-payment' sau 8.5 s. Người dùng tự mở Nộp tiền thì tour tự tiếp tục bước 6",
+    "OK: 100%",
+    "OK: 100%, nút Tiếp",
+    "OK: 100%; 'Xong tour · 8 bước'"
+  ],
+  "notes": "Màn Nộp tiền hiển thị dữ liệu cá nhân (tên, số tài khoản); không capture phần tử nào chứa dữ liệu đó. Không bấm nút sao chép/tải về. | Vòng 3: chưa ghi lại được — hộp thoại tìm kiếm và màn Nộp tiền không mở (file JS trả 403); vẫn là fp v3. Ô tìm kiếm trong drawer bấm thật không có tác dụng nên v4 ghi đúng là info."
+}

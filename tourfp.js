@@ -28,6 +28,16 @@
   const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
   const isUi = e => !!(e && e.closest && e.closest('[data-tourfp-ui]'));
   const visible = e => e.getClientRects().length > 0;
+  // Nằm hẳn ngoài màn hình theo chiều ngang mà không có khung cuộn ngang nào đưa nó vào được: đó là ngăn kéo/bảng trượt đang đóng
+  // (hoặc bản sao ẩn của nó). Người dùng không thấy và không bấm được, nên coi như chưa có trên màn.
+  function offscreen(e) {
+    const r = e.getBoundingClientRect();
+    if (r.right > 0 && r.left < innerWidth) return false;
+    for (let p = e.parentElement; p && p !== document.documentElement; p = p.parentElement) {
+      if (p.scrollWidth > p.clientWidth + 4) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll') return false; }
+    }
+    return document.documentElement.scrollWidth <= innerWidth + 4;
+  }
   const tagOf = e => e.tagName.toLowerCase();
 
   // ---------- giá trị từ API: nghe mọi phản hồi JSON, nhớ các chuỗi trong đó ----------
@@ -36,7 +46,7 @@
   const keyOf = s => norm(s).toLowerCase();
   function feed(v, depth) {
     if (v == null || depth > 12 || api.set.size >= API_MAX) return;
-    if (typeof v === 'string') { const s = keyOf(v); if (s.length >= 2 && s.length <= 120 && hasLetters(s)) api.set.add(s); }
+    if (typeof v === 'string') { const s = keyOf(v); if (s.length >= 2 && s.length <= 120 && hasLetters(s)) { api.set.add(s); if (/\d/.test(s)) api.set.add(stripNum(s)); } }
     else if (Array.isArray(v)) for (const x of v) feed(x, depth + 1);
     else if (typeof v === 'object') for (const k in v) feed(v[k], depth + 1);
   }
@@ -62,6 +72,46 @@
       return p;
     };
   }
+  // ---------- dữ liệu cá nhân: không bao giờ được nằm trong tour ----------
+  // Thư viện có thể được nạp sau khi app đã gọi API hồ sơ, nên không thể chỉ dựa vào việc "nghe" phản hồi. Thêm hai nguồn:
+  //  - những gì app lưu trong localStorage/sessionStorage (hồ sơ, token đăng nhập có tên bên trong): chỉ dùng để nhận ra dữ liệu
+  //    cá nhân, không dùng để phân loại nhãn (ở đó có cả chữ cố định của app);
+  //  - hình dạng của chuỗi: họ tên người Việt, email.
+  const priv = new Set();
+  function feedPriv(v, depth) {
+    if (v == null || depth > 8 || priv.size >= 5000) return;
+    if (typeof v === 'string') {
+      if (v.length > 120) { // token dạng a.b.c: phần giữa là JSON chứa tên, email
+        const p = v.split('.');
+        if (p.length === 3 && p[1].length < 4000) try { feedPriv(JSON.parse(decodeURIComponent(escape(atob(p[1].replace(/-/g, '+').replace(/_/g, '/'))))), depth + 1); } catch (_) { /* không phải token */ }
+        else if (v.length < 20000 && /^[[{]/.test(v)) try { feedPriv(JSON.parse(v), depth + 1); } catch (_) { /* không phải JSON */ }
+        return;
+      }
+      if (/^[[{]/.test(v)) { try { return feedPriv(JSON.parse(v), depth + 1); } catch (_) { /* chuỗi thường */ } }
+      const k = keyOf(v);
+      if (k.length >= 4 && hasLetters(k) && k.includes(' ')) priv.add(k); // chỉ giữ chuỗi nhiều từ (họ tên, địa chỉ); từ đơn dễ trùng nhãn
+    } else if (Array.isArray(v)) for (const x of v.slice(0, 50)) feedPriv(x, depth + 1);
+    else if (typeof v === 'object') for (const k in v) feedPriv(v[k], depth + 1);
+  }
+  function readStores() {
+    for (const st of [window.localStorage, window.sessionStorage]) {
+      try { for (let i = 0; i < st.length && i < 200; i++) { const k = st.key(i); if (!/^tourfp|i18n|lang|locale|translat/i.test(k)) feedPriv(st.getItem(k), 0); } } catch (_) { /* không đọc được thì thôi */ }
+    }
+  }
+  readStores();
+  // chỉ các họ hiếm khi là từ thường trong giao diện (bỏ Hồ, Lý, Cao, Hà, Mai…: "Hồ Sơ", "Lý Do" là nhãn); phần còn lại nhờ nguồn thứ nhất
+  const SURNAME = /^(nguy[eễ]n|tr[aầ]n|l[eê]|ph[aạ]m|ho[aà]ng|hu[yỳ]nh|phan|v[uũ]|v[oõ]|[dđ][aặ]ng|b[uù]i|[dđ][oỗ]|ng[oô]|tr[iị]nh|qu[aá]ch|tr[uư][oơ]ng)$/i;
+  const CAP = /^[A-ZÀ-ỸĐ][A-Za-zÀ-ỹĐđ]*$/;
+  function looksPersonal(v) {
+    v = norm(v);
+    if (/[^\s@]+@[^\s@]+\.[a-z]{2,}/i.test(v)) return true;
+    const w = v.replace(/^(xin chào|chào|hi|hello)[,!]?\s+/i, '').split(' ');
+    // họ tên: 2–5 từ đều viết hoa chữ đầu (hoặc viết hoa hết), từ đầu là một họ phổ biến
+    return w.length >= 2 && w.length <= 5 && SURNAME.test(w[0]) && w.every(x => CAP.test(x));
+  }
+  const isPersonal = v => looksPersonal(v) || priv.has(keyOf(v));
+  // "là dữ liệu": giá trị API hoặc dữ liệu cá nhân
+  const isData = v => isApiValue(v) || isPersonal(v);
   function isApiValue(piece) {
     const k = keyOf(piece);
     if (api.set.has(k)) return true;
@@ -70,7 +120,8 @@
   }
 
   // ---------- tín hiệu ----------
-  // tách chữ của phần tử thành các mẩu, bỏ chữ số
+  // Tách chữ của phần tử thành các mẩu, mỗi dòng chữ một mẩu. Chữ số được thay bằng # chứ không cắt bỏ:
+  // "1M" → "#M", "% EPS 1 năm" → "% EPS # năm", "0.0 tr" → "# tr". Dòng chỉ có số ("82.9%") thì bỏ.
   function pieces(e) {
     const out = [], num = [];
     let digits = false, nodes = 0;
@@ -80,8 +131,10 @@
       const v = n.nodeValue;
       if (!v.trim() || (n.parentElement && n.parentElement.closest('svg,script,style,mat-icon,.material-icons'))) continue;
       nodes++;
-      if (/\d/.test(v)) digits = true;
-      for (const seg of v.split(/\d[\d.,%\/:-]*/)) { const s = norm(seg); if (s.length >= 2 && hasLetters(s)) { out.push(s.slice(0, 60)); num.push(/\d/.test(v)); } }
+      const d = /\d/.test(v);
+      if (d) digits = true;
+      const t = stripNum(v);
+      if (t.length >= 2 && hasLetters(t)) { out.push(t.slice(0, 60)); num.push(d); }
     }
     return { all: out, digits, num };
   }
@@ -106,8 +159,12 @@
     if (tagOf(i) === 'mat-icon' && !i.childElementCount) return norm(i.textContent);
     if (tagOf(i) === 'img') return (i.getAttribute('src') || '').split('/').pop().split('?')[0];
     const p = i.querySelector('use,path');
-    if (!p) return '';
-    return p.getAttribute('href') || p.getAttribute('xlink:href') || 'd:' + hash(p.getAttribute('d') || '');
+    if (p) return p.getAttribute('href') || p.getAttribute('xlink:href') || 'd:' + hash(p.getAttribute('d') || '');
+    // icon vẽ bằng hình cơ bản, không có path (ví dụ nút ⋮ gồm ba hình tròn): lấy dấu của chính các hình đó
+    const shapes = [...i.querySelectorAll('circle,rect,ellipse,line,polygon,polyline')].slice(0, 8);
+    if (!shapes.length) return '';
+    const A = ['cx', 'cy', 'r', 'x', 'y', 'width', 'height', 'rx', 'points', 'x1', 'y1', 'x2', 'y2'];
+    return 'g:' + hash(shapes.map(x => x.tagName + A.map(a => x.getAttribute(a) || '').join(',')).join('|'));
   }
 
   function compChain(e) {
@@ -201,7 +258,15 @@
     if (getComputedStyle(e).cursor !== 'pointer') return target;
     // leo lên mục bấm được nhỏ nhất: dừng khi cha gom nhiều mục có chữ (ví dụ cả thanh menu)
     const textKids = p => { let n = 0; for (const c of p.children) if (norm(c.textContent)) n++; return n; };
-    for (let p = e.parentElement; p && p !== document.body && getComputedStyle(p).cursor === 'pointer' && textKids(p) <= 1; p = p.parentElement) e = p;
+    for (let p = e.parentElement; p && p !== document.body && getComputedStyle(p).cursor === 'pointer' && textKids(p) <= 1; p = p.parentElement) {
+      const b = p.getBoundingClientRect();
+      if (!b.width || !b.height) break; // thẻ bọc không có kích thước: tô sáng nó sẽ không thấy gì
+      if (b.width * b.height > 0.4 * innerWidth * innerHeight) break; // chiếm phần lớn màn hình: đó là vùng chứa, không phải nút
+      // cha còn chứa nút, ô nhập, icon hay ảnh khác: đó là một thanh gom nhiều thứ bấm được (thanh trên cùng, thanh bộ lọc), không phải một nút
+      const cur = e;
+      if ([...p.querySelectorAll('input,textarea,select,button,a[href],[role=button],img,svg,mat-icon,tcbs-icon')].some(x => !cur.contains(x) && !x.contains(cur) && visible(x))) break;
+      e = p;
+    }
     return e;
   }
 
@@ -211,63 +276,107 @@
     for (let p = e, i = 0; p && p !== document.body && i < 6; p = p.parentElement, i++) out.push(tagOf(p) + (p.getAttribute('role') ? '[' + p.getAttribute('role') + ']' : ''));
     return out.join('<');
   };
-  // các phần tử khác trên màn có chữ/icon/thuộc tính y hệt đích (không tính phần tử bọc ngoài hay nằm trong đích)
+  const textOf = e => { const t = e.textContent || ''; return t.length > 400 ? '' : norm(t); };
+  // Nhãn "mềm": mẩu chữ trùng với một giá trị trong phản hồi API. Nó có thể là dữ liệu của riêng người dùng (tên, tên kế hoạch)
+  // hoặc là nhãn cố định mà API cũng trả về ("MUA", "Kỹ thuật"). Không biết chắc, nên: có trên phần tử thì cộng điểm,
+  // không có thì không trừ điểm.
+  function softHit(fp, e) {
+    if (!fp.soft || !fp.soft.length) return false;
+    const c = stripNum(textOf(e));
+    if (!c) return false;
+    for (const x of fp.soft) if (!c.includes(x)) return false;
+    return lettersLen(fp.soft.join('')) * 2 >= lettersLen(c); // khối chứa nhiều chữ khác thì không tính
+  }
+  // "cùng loại" với đích: cùng thẻ, cùng icon, cùng thuộc tính khoá, cùng nhãn. Dùng chung cho lúc ghi và lúc phát,
+  // để nhóm các phần tử lặp lại (các dòng của bảng) luôn được dựng theo đúng một cách.
+  function sameKind(fp, e) {
+    if (isUi(e) || !visible(e) || tagOf(e) !== fp.tag || iconOf(e) !== fp.icon) return false;
+    for (const k in fp.key) if (e.getAttribute(k) !== fp.key[k]) return false;
+    if (fp.soft && fp.soft.length) { if (!softHit(fp, e)) return false; }
+    else if (fp.label && labelScore(fp, e) < 0.9) return false;
+    // bản ghi từ v4 không đếm phần tử nằm ngoài màn vào nhóm; bản ghi cũ đã đếm cả chúng nên giữ nguyên cách đếm để thứ tự không lệch
+    return fp.v >= 4 ? !offscreen(e) : true;
+  }
+  // các phần tử khác cùng loại với đích (không tính phần tử bọc ngoài hay nằm trong đích)
   function twinsOf(fp, el) {
     const out = [];
-    for (const r of roots()) for (const e of r.querySelectorAll(fp.tag)) {
-      if (e === el || e.contains(el) || el.contains(e) || isUi(e) || !visible(e) || iconOf(e) !== fp.icon) continue;
-      if (fp.label && labelScore(fp, e) < 0.9) continue;
-      let same = true;
-      for (const k in fp.key) if (e.getAttribute(k) !== fp.key[k]) same = false;
-      if (same) out.push(e);
-    }
+    for (const r of roots()) for (const e of r.querySelectorAll(fp.tag)) if (e !== el && !e.contains(el) && !el.contains(e) && sameKind(fp, e)) out.push(e);
     return out;
   }
+  // Nhóm các phần tử cùng loại và cùng "hình dáng" vị trí, theo thứ tự trên trang. Khi nhiều lớp lồng nhau cùng khớp
+  // (khối bọc và chữ bên trong nó), chỉ giữ lớp ngoài cùng, để mỗi mục của danh sách được đếm đúng một lần.
+  function kindGroup(fp, sig) {
+    const all = [];
+    for (const r of roots()) for (const e of r.querySelectorAll(fp.tag)) if (sameKind(fp, e) && sigOf(e) === sig) all.push(e);
+    const set = new Set(all);
+    return all.filter(e => { for (let p = e.parentElement; p; p = p.parentElement) if (set.has(p)) return false; return true; });
+  }
 
+  // bản "trần" của dấu vân tay: bỏ phần chữ, chỉ còn cấu trúc (thẻ, icon, thuộc tính khoá). Dùng để dựng nhóm các dòng dữ liệu.
+  const bare = fp => Object.assign({}, fp, { soft: [], segs: [], label: '' });
+  const innerOf = (fp, g, sig) => [...g.querySelectorAll(fp.tag)].filter(x => sameKind(fp, x) && sigOf(x) === sig);
   function capture(el) {
-    const fp = { v: 2, tag: tagOf(el), role: el.getAttribute('role') || '', label: '', segs: [], mixed: false, dyn: 0, cover: 1, key: {}, attr: {}, icon: iconOf(el), comp: compChain(el), anchor: '', anchorSkip: 0, pos: posOf(el), hint: '', ctx: context() };
+    const fp = { v: 4, tag: tagOf(el), role: el.getAttribute('role') || '', label: '', segs: [], soft: [], exact: '', mixed: false, dyn: 0, cover: 1, key: {}, attr: {}, icon: iconOf(el), comp: compChain(el), anchor: '', anchorSkip: 0, pos: posOf(el), hint: '', ctx: context() };
     // tiêu đề khối đứng trước: lấy mẩu đầu tiên không phải giá trị API, và nhớ vị trí của nó để lúc khớp đọc đúng mẩu đó
-    const ac = anchorCands(el), ai = ac.findIndex(v => !isApiValue(v));
+    const ac = anchorCands(el), ai = ac.findIndex((v, i) => !ac.data[i] && !isData(v));
     if (ai >= 0) { fp.anchor = ac[ai]; fp.anchorSkip = ai; }
     const attrLabel = el.getAttribute('aria-label') || el.getAttribute('title') || el.getAttribute('placeholder') || el.getAttribute('alt');
-    if (attrLabel) fp.label = stripNum(attrLabel).slice(0, 60);
-    else {
+    if (attrLabel && !isPersonal(attrLabel)) fp.label = stripNum(attrLabel).slice(0, 60);
+    else if (!attrLabel && !el.matches('mat-select,select,[role=combobox]')) { // ô chọn hiển thị giá trị đang chọn, không phải nhãn: bỏ qua chữ của nó
       const p = pieces(el);
-      if (p && p.all.length) {
-        const stat = p.all.filter(s => !isApiValue(s));
+      if (p.all.length) {
+        const stat = [], soft = [];
+        for (const x of p.all) (isData(x) ? soft : stat).push(x);
         const big = p.all.length > 2; // khối chứa nhiều chữ: chỉ giữ hai mẩu đầu (tiêu đề), phần sau thường là dữ liệu
         fp.segs = stat.slice(0, big ? 2 : 5);
-        fp.label = fp.segs.join(' ').slice(0, 60);
-        fp.dyn = p.all.length - stat.length; // số mẩu chữ bị loại vì là giá trị API
-        fp.mixed = fp.dyn > 0 || p.digits || big;
-        fp.cover = +(lettersLen(fp.segs.join('')) / lettersLen(norm(el.textContent))).toFixed(2);
+        if (!fp.segs.length) fp.soft = soft.slice(0, 2); // không có mẩu cố định nào: dùng mẩu "mềm" làm nhãn tuỳ chọn
+        const used = fp.segs.length ? fp.segs : fp.soft;
+        fp.label = used.join(' ').slice(0, 60);
+        fp.dyn = soft.length; // số mẩu chữ trùng giá trị API
+        fp.mixed = soft.length > 0 || p.digits || big;
+        fp.cover = +(lettersLen(used.join('')) / lettersLen(norm(el.textContent))).toFixed(2);
       }
+      // chữ nguyên văn có con số ("1M", "Bước 2"): dùng để phân xử giữa các phần tử chỉ khác nhau ở con số
+      const own = textOf(el);
+      if (own && own.length <= 40 && /\d/.test(own) && hasLetters(own) && !isPersonal(own)) fp.exact = own;
     }
-    for (const k of KEY) { const v = el.getAttribute(k); if (v && !/\d{3,}/.test(v)) fp.key[k] = v; }
+    // thuộc tính khoá: bỏ giá trị sinh tự động (mat-radio-group-0, mat-input-3, chuỗi có nhiều chữ số), vì mỗi lần tải một khác
+    for (const k of KEY) { const v = el.getAttribute(k); if (v && !/\d{3,}/.test(v) && !LIB.test(v) && !/[-_]\d+$/.test(v)) fp.key[k] = v; }
     for (const k of SOFT) { const v = el.getAttribute(k); if (v && v.length <= 80) fp.attr[k] = k === 'href' ? v.split('?')[0] : stripNum(v); }
-    // số phần tử khác trên màn có chữ/icon/thuộc tính y hệt (ví dụ ba nút bút chì): nếu có thì khối đứng trước là bắt buộc
+    // số phần tử khác trên màn cùng loại với đích (ví dụ ba nút bút chì, các nút MUA của bảng)
     fp.twins = 0;
-    if (hasStrong(fp)) {
-      const group = twinsOf(fp, el);
-      fp.twins = group.length;
-      if (group.length) {
+    {
+      // Phần tử có chữ, icon hoặc thuộc tính khoá: bản sao là mọi phần tử cùng loại trên màn.
+      // Phần tử không có gì để nhận diện (ô chỉ chứa số): bản sao là các phần tử cùng thẻ ở cùng "hình dáng" vị trí, tức các ô khác của lưới.
+      // Phần tử chỉ có chữ là dữ liệu (mã chứng khoán, tên quỹ): chữ đó không dùng để nhận diện được (người khác, ngày khác sẽ khác),
+      // nên cũng coi như không có gì để nhận diện: bản sao là các phần tử cùng cấu trúc, và sẽ ghi theo thứ tự.
+      const loose = !hasStrong(fp) && fp.soft.length > 0, base = loose ? bare(fp) : fp;
+      const twins = hasStrong(fp) ? twinsOf(fp, el) : kindGroup(base, sigOf(el)).filter(g => g !== el && !g.contains(el) && !el.contains(g));
+      fp.twins = twins.length;
+      if (twins.length) {
         // Tiêu đề khối đứng trước chỉ phân biệt được các bản sao khi cả ba điều đúng:
         //  - nó nằm bên trong chính "đơn vị lặp" chứa đích (một dòng của bảng, một mục của form), không phải chữ của dòng bên cạnh;
         //  - nó là nhãn, không phải dữ liệu (mã, số liệu);
         //  - không bản sao nào khác có tiêu đề y hệt.
         // Nếu không, đây là danh sách sinh từ dữ liệu: nhận diện bằng thứ tự, "nút thứ mấy trong danh sách".
-        const sig = sigOf(el), peer = group.find(e => sigOf(e) === sig);
-        let byAnchor = !!fp.anchor;
+        const sig = sigOf(el), peer = twins.find(e => sigOf(e) === sig);
+        let byAnchor = !!fp.anchor && !loose;
         if (byAnchor && peer) {
           let unit = el;
           while (unit.parentElement && !unit.parentElement.contains(peer)) unit = unit.parentElement;
           const inner = anchorCands(el, unit), j = inner.indexOf(fp.anchor);
           byAnchor = j >= 0 && !inner.data[j];
         }
-        if (byAnchor) byAnchor = !group.some(e => sim(fp.anchor, anchorCands(e)[fp.anchorSkip] || ''));
+        // (so với mọi mẩu chữ đứng trước bản sao, không chỉ mẩu ở cùng vị trí: các ô của một dòng thấy tên dòng ở những vị trí khác nhau)
+        if (byAnchor) byAnchor = !twins.slice(0, 300).some(e => anchorCands(e).some(v => sim(fp.anchor, v)));
         if (!byAnchor) {
+          const group = kindGroup(base, sig);
           fp.sig = sig;
-          fp.nth = group.filter(e => sigOf(e) === sig && (e.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)).length;
+          fp.nth = Math.max(0, group.findIndex(g => g === el || g.contains(el)));
+          if (loose) fp.loose = 1;
+          // đích nằm bên trong một mục của nhóm (khối bọc cùng "hình dáng"): nhớ nó là phần tử thứ mấy trong mục đó
+          const g = group[fp.nth];
+          if (g && g !== el && g.contains(el)) { const k = innerOf(base, g, sig).indexOf(el); if (k >= 0) fp.sub = k; }
           fp.anchor = ''; fp.anchorSkip = 0;
         }
       }
@@ -293,7 +402,7 @@
     if (!t) return 0;
     // không giới hạn độ dài: thẻ có biểu đồ chứa rất nhiều chữ số nhưng vẫn là đích hợp lệ
     if (t.length > 4000 && !t.includes(fp.segs[0].split(' ').sort((a, b) => b.length - a.length)[0])) return 0;
-    const c = norm(t);
+    const c = fp.v >= 3 ? stripNum(t) : norm(t);
     let hit = 0;
     for (const s of fp.segs) if (c.includes(s)) hit++;
     if (hit < fp.segs.length) return hit * 2 >= fp.segs.length ? 0.5 * hit / fp.segs.length : 0;
@@ -305,7 +414,8 @@
   function score(fp, e) {
     let got = 0, max = 0;
     const add = (w, v) => { max += w; got += w * (v === true ? 1 : v || 0); };
-    if (fp.label) add(W.label, labelScore(fp, e));
+    if (fp.soft && fp.soft.length) { if (softHit(fp, e)) add(W.label, 1); } // nhãn mềm: có thì cộng, không có thì không trừ
+    else if (fp.label) add(W.label, labelScore(fp, e));
     for (const k in fp.key) add(W.key, e.getAttribute(k) === fp.key[k]);
     for (const k in fp.attr) add(W.attr, softVal(e, k) === fp.attr[k]);
     if (fp.icon) add(W.icon, iconOf(e) === fp.icon);
@@ -327,12 +437,13 @@
 
   // có ít nhất một tín hiệu mạnh thì mới chấm đầy đủ
   function strongHit(fp, e) {
-    if (fp.label && labelScore(fp, e)) return true;
+    if (fp.label && !(fp.soft && fp.soft.length) && labelScore(fp, e)) return true;
     for (const k in fp.key) if (e.getAttribute(k) === fp.key[k]) return true;
     if (fp.icon && iconOf(e) === fp.icon) return true;
     return false;
   }
-  const hasStrong = fp => !!(fp.label || fp.icon || Object.keys(fp.key).length);
+  // nhãn mềm không tính là tín hiệu mạnh: nó có thể vắng mặt ở người dùng khác
+  const hasStrong = fp => !!((fp.label && !(fp.soft && fp.soft.length)) || fp.icon || Object.keys(fp.key).length);
 
   // hệ số "với tới được": bản sao nằm trong ngăn kéo ẩn ngoài màn hình hoặc bị che thì xếp sau bản đang hiện
   function reach(e) {
@@ -364,8 +475,28 @@
     if (fp.hint && !opts.noHint) {
       let hits = [];
       try { for (const r of rs) hits.push(...r.querySelectorAll(fp.hint)); } catch (_) { hits = []; }
-      hits = hits.filter(visible);
+      hits = hits.filter(h => visible(h) && !offscreen(h));
       if (hits.length === 1) { const s = score(fp, hits[0]); if (s >= THRESHOLD) return done({ status: 'ok', el: hits[0], score: s, margin: 1, via: 'hint', scanned: 1 }); }
+    }
+    // Đích được ghi theo thứ tự trong danh sách. Dựng lại đúng nhóm như lúc ghi (cùng loại, cùng "hình dáng", lớp ngoài cùng),
+    // rồi: nếu trong nhóm chỉ đúng một phần tử có chữ nguyên văn như lúc ghi ("1M") thì lấy nó; nếu không thì lấy cái thứ nth.
+    if (fp.nth != null && fp.sig) {
+      const base = fp.loose ? bare(fp) : fp;
+      const group = kindGroup(base, fp.sig);
+      let same = fp.exact ? group.filter(g => textOf(g) === fp.exact) : [];
+      // dòng dữ liệu: nếu đúng một dòng còn mang chữ như lúc ghi (cùng mã) thì đi theo dòng đó, không thì lấy theo thứ tự
+      let byText = same.length === 1 ? fp.exact : '';
+      if (!byText && fp.loose) { same = group.filter(g => softHit(fp, g)); if (same.length === 1) byText = fp.soft.join(' '); }
+      const rep = byText ? same[0] : group[fp.nth];
+      if (!rep || offscreen(rep)) return done({ status: 'not-found', score: 0, scanned: group.length, need: fp.nth + 1, have: group.length });
+      // trong mục đó, trả về đúng lớp đã ghi (có thể là lớp bên trong)
+      let pick = rep, top = score(fp, rep);
+      if (fp.sub != null) { const x = innerOf(base, rep, fp.sig)[fp.sub]; if (x) { pick = x; top = score(fp, x); } }
+      else for (const x of rep.querySelectorAll(fp.tag)) if (sameKind(base, x)) { const v = score(fp, x); if (v > top) { pick = x; top = v; } }
+      // Lấy theo thứ tự mà số phần tử trong nhóm đã khác lúc ghi: danh sách đã đổi (thêm, bớt, một mục đang mở rộng), không còn chắc
+      // "thứ n" vẫn là mục cũ. Vẫn dẫn tới đó (danh sách sinh từ dữ liệu thì số dòng đổi là bình thường) nhưng báo ra để bên gọi biết.
+      const drift = !byText && fp.twins != null && group.length !== fp.twins + 1;
+      return done({ status: 'ok', el: pick, score: top, margin: 1, via: (byText ? 'chữ «' + byText + '»' : 'thứ ' + (fp.nth + 1) + '/' + group.length) + (drift ? ' (lúc ghi có ' + (fp.twins + 1) + ')' : ''), drift, scanned: group.length });
     }
     const strong = hasStrong(fp);
     const ranked = [];
@@ -382,22 +513,22 @@
     ranked.sort((a, b) => b.score - a.score);
     if (fp.tag && (!ranked.length || ranked[0].score < THRESHOLD)) { ranked.length = 0; scan('*'); ranked.sort((a, b) => b.score - a.score); }
     // điểm gốc quyết định có đạt ngưỡng không; điểm đã nhân hệ số chỉ dùng để xếp hạng giữa các bản sao
+    // ứng viên đủ điểm nhưng nằm ngoài màn (ngăn kéo đang đóng) thì loại hẳn: chờ tới khi nó thật sự hiện ra
+    { const live = ranked.filter(c => c.score < THRESHOLD || !offscreen(c.el)); ranked.length = 0; ranked.push(...live); }
     for (const c of ranked) c.adj = c.score;
     for (const c of ranked.slice(0, 8)) c.adj = c.score * reach(c.el);
     ranked.sort((a, b) => b.adj - a.adj);
+    // Phân xử giữa các ứng viên ngang điểm: nếu có ứng viên mang đúng chữ nguyên văn lúc ghi (kể cả con số: "1M" chứ không phải "3M"),
+    // các ứng viên còn lại bị xếp sau. Không ứng viên nào mang đúng chữ đó (con số đã đổi) thì không ai bị trừ.
+    if (fp.exact) {
+      const hit = ranked.filter(c => c.score >= THRESHOLD && textOf(c.el) === fp.exact);
+      if (hit.length) { for (const c of ranked) if (!hit.includes(c)) c.adj *= 0.85; ranked.sort((a, b) => b.adj - a.adj); }
+    }
     // ứng viên lồng nhau (nút và chữ bên trong nó) là cùng một đích, không tính là mơ hồ
     let best = ranked[0];
     // giữa một phần tử và khối cha của chính nó thì chọn theo điểm gốc, không để hệ số "bị che" quyết định
     if (best) for (const c of ranked) if (c !== best && c.score > best.score && (c.el.contains(best.el) || best.el.contains(c.el))) best = c;
     const second = best && ranked.find((c, i) => i > 0 && !best.el.contains(c.el) && !c.el.contains(best.el));
-    // đích được ghi theo thứ tự trong danh sách: lấy các ứng viên cùng "hình dáng", xếp theo thứ tự trên trang, chọn cái thứ nth
-    if (fp.nth != null && fp.sig) {
-      const group = ranked.filter(c => c.score >= THRESHOLD && sigOf(c.el) === fp.sig).map(c => c.el)
-        .sort((x, y) => (x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
-      const pick = group[fp.nth];
-      if (!pick) return done({ status: 'not-found', score: best ? best.score : 0, scanned, need: fp.nth + 1, have: group.length });
-      return done({ status: 'ok', el: pick, score: score(fp, pick), margin: 1, via: 'thứ ' + (fp.nth + 1) + '/' + group.length, scanned });
-    }
     if (!best || best.score < THRESHOLD) return done({ status: 'not-found', score: best ? best.score : 0, scanned });
     const margin = best.adj - (second ? second.adj : 0);
     return done({ status: margin >= MARGIN ? 'ok' : 'ambiguous', el: best.el, score: best.score, margin, via: 'scan', scanned, top: ranked.slice(0, 3) });
@@ -407,9 +538,9 @@
   function clickables() {
     const out = new Set();
     for (const r of roots()) {
-      for (const e of r.querySelectorAll(SEMANTIC)) if (visible(e) && !isUi(e)) out.add(e);
+      for (const e of r.querySelectorAll(SEMANTIC)) if (visible(e) && !isUi(e) && !offscreen(e)) out.add(e);
       for (const e of r.querySelectorAll('div,span,li,td,tcbs-icon,mat-icon,img')) {
-        if (!visible(e) || isUi(e) || e.closest(SEMANTIC)) continue;
+        if (!visible(e) || isUi(e) || e.closest(SEMANTIC) || offscreen(e)) continue;
         if (getComputedStyle(e).cursor === 'pointer' && getComputedStyle(e.parentElement).cursor !== 'pointer') out.add(e);
       }
     }
@@ -420,11 +551,13 @@
   const steps = []; // { kind: 'click' | 'hover' | 'input' | 'info', fp, note }
   let recording = false, playing = -1, raf = 0, target = null, token = 0, pending = null, lastCap = 0;
   let hoverEl = null, hoverT = 0, lastDown = 0, popups = [], advancing = false;
+  let resumeAt = -1; // bước đang dở của lượt phát gần nhất (-1: không có)
   let directRun = 0, fullSteps = null, choice = null; // lượt "vào thẳng" đang chạy; bản đầy đủ của tour khi chỉ chạy tới bước x; hai lựa chọn đang chờ
   // khi đang ghi: menu bật ra do rê chuột (không phải do bấm) thì nhớ phần tử đang được rê lên
   const popMo = new MutationObserver(list => {
-    // bỏ qua nếu vừa có cú bấm (trong 1,5 giây, hoặc từ lúc chuột vào phần tử đang rê): khi đó thứ bật ra là do bấm
-    if (!recording || performance.now() - lastDown < 1500 || lastDown > hoverT || !hoverEl || !hoverEl.isConnected) return;
+    // Thứ bật ra là do bấm (không phải do rê chuột) khi cú bấm xảy ra sau lúc chuột đi vào phần tử đang rê, tức chuột vẫn nằm
+    // trên chỗ vừa bấm; hoặc khi nó hiện ra gần như tức thì sau cú bấm. Rê sang một phần tử khác rồi menu mới bật ra thì là do rê.
+    if (!recording || performance.now() - lastDown < 250 || lastDown > hoverT || !hoverEl || !hoverEl.isConnected) return;
     for (const m of list) for (const n of m.addedNodes) {
       if (n.nodeType !== 1 || isUi(n) || !(n.closest('.cdk-overlay-container') || n.matches(POPUP))) continue;
       // hộp thoại chặn màn hình và lớp nền mờ của nó không bao giờ là menu rê chuột
@@ -476,10 +609,15 @@
   // chế độ chỉ phát (chạy thử từ trang quản trị, hoặc mở trang với ?tourfp=<mã>): không hiện thanh ghi tour
   const PLAYER = !!window.TOURFP_PLAYER || new URLSearchParams(location.search).has('tourfp');
   if (PLAYER) panel.style.display = 'none';
-  document.documentElement.append(box, tip, panel);
+  // Gắn giao diện vào trang. Khi thư viện được nạp trước cả lúc trang có thẻ <html> (chèn ở "document start"), chờ tới khi có.
+  const mount = () => document.documentElement.append(box, tip, panel);
+  if (document.documentElement) mount();
+  else new MutationObserver((_, mo) => { if (document.documentElement) { mo.disconnect(); mount(); } }).observe(document, { childList: true });
   try { const p = JSON.parse(sessionStorage.getItem(POS) || 'null'); if (p) moveTo(p[0], p[1]); } catch (_) { /* vị trí cũ không đọc được */ }
 
-  const nameOf = fp => (fp.segs && fp.segs[0]) || fp.label || fp.icon || fp.key.name || fp.key.formcontrolname || fp.attr.placeholder || fp.tag;
+  const nameOf = fp => fp.exact || (fp.segs && fp.segs[0]) || (fp.soft && fp.soft[0]) || fp.label || fp.attr.placeholder
+    || (fp.icon && !/^[dg]:/.test(fp.icon) && !/[\/#.]/.test(fp.icon) ? fp.icon : '') // tên icon đọc được ("close"), không phải mã băm hay đường dẫn
+    || (fp.anchor ? 'nút ở mục ' + fp.anchor : 'phần tử được tô sáng');
   // hiển thị chữ lên giao diện; phần đặt trong «…» (tên đích, tên tour) thành chữ in đậm, bỏ dấu ngoặc
   const rich = (node, text) => {
     node.replaceChildren();
@@ -520,21 +658,29 @@
       tip.style.top = (below ? r.bottom + 12 : Math.max(8, r.top - tip.offsetHeight - 12)) + 'px';
     }
   }
-  const loop = () => { place(); raf = requestAnimationFrame(loop); };
+  let lastWatch = 0;
+  const loop = () => { place(); const t = performance.now(); if (t - lastWatch > 300) { lastWatch = t; watchStep(); } raf = requestAnimationFrame(loop); };
   const flash = c => { const old = box.style.borderColor; box.style.borderColor = c; setTimeout(() => { box.style.borderColor = old; }, 250); };
 
   // --- ghi: lấy dấu vân tay lúc nhấn xuống (trước khi app đổi DOM), ghi bước lúc bấm xong
   const onMove = e => {
     if (!recording || isUi(e.target)) return;
     target = clickableRoot(e.target);
-    if (!e.target.closest(POPUP) && hoverEl !== target) { hoverEl = target; hoverT = performance.now(); }
+    noteHover(e.target, target);
   };
+  // Ghi nhận phần tử đang được rê lên. Gọi cả ở mouseover: sự kiện này đến TRƯỚC mouseenter của app, nên khi menu rê chuột bật ra
+  // ngay trong mouseenter thì bộ theo dõi popup đã biết chuột đang ở phần tử nào (mousemove đến sau, lúc đó đã muộn).
+  function noteHover(raw, root) {
+    if (!raw.closest || raw.closest(POPUP) || hoverEl === root) return;
+    hoverEl = root; hoverT = performance.now();
+  }
+  const onOver = e => { if (recording && !isUi(e.target)) noteHover(e.target, clickableRoot(e.target)); };
   const onDown = e => {
     if (isUi(e.target)) return;
     lastDown = performance.now();
     if (recording) {
       const el = clickableRoot(e.target);
-      pending = { el, fp: capture(el) };
+      pending = { el, fp: capture(el), x: e.clientX, y: e.clientY, t: performance.now(), alt: e.altKey, clickable: isClickable(el) };
       if (e.altKey) e.stopImmediatePropagation();
     } else gate(e, false);
   };
@@ -546,28 +692,39 @@
     const el = clickableRoot(e.target);
     const fp = pending && (pending.el === el || pending.el.contains(el) || el.contains(pending.el)) ? pending.fp : capture(el);
     pending = null;
-    // phần tử không bấm được (tiêu đề, thẻ thông tin) thì là bước "chỉ tô sáng", khi phát có nút Tiếp
-    const kind = e.altKey || !isClickable(el) ? 'info' : el.matches('input,textarea') ? 'input' : 'click';
     if (e.altKey) { e.preventDefault(); e.stopImmediatePropagation(); }
+    commit(el, fp, e.altKey);
+  };
+  // thêm một bước vào tour
+  // acted = true: cú bấm đã được app xử lý ngay lúc nhấn xuống (phần tử có thể đã bị gỡ), nên chắc chắn là bước "bấm"
+  function commit(el, fp, alt, acted) {
+    // phần tử không bấm được (tiêu đề, thẻ thông tin) thì là bước "chỉ tô sáng", khi phát có nút Tiếp
+    // Phần tử trông không bấm được (không có con trỏ tay) vẫn có thể được app gắn sự kiện bấm: cứ ghi là "bấm" rồi theo dõi,
+    // không thấy tác dụng gì thì mới hạ thành "chỉ tô sáng" (khi phát có nút Tiếp).
+    const kind = alt ? 'info' : acted ? 'click' : el.matches('input,textarea') ? 'input' : 'click';
     // đích nằm trong menu bật ra do rê chuột: chèn bước "rê chuột" vào trước
     const pop = popups.find(p => !p.used && p.node.isConnected && p.node.contains(el));
     if (pop) { for (const p of popups) if (p.node.contains(el) || pop.node.contains(p.node)) p.used = true; steps.push({ kind: 'hover', fp: pop.trig, note: '' }); }
     const step = { kind, fp, note: '' };
     steps.push(step);
-    if (kind === 'click') watchEffect(step);
+    if (kind === 'click' && !acted) watchEffect(step, !isClickable(el));
+    if (acted) setTimeout(() => { step.after = context(); }, 700); // thay đổi đã xảy ra rồi: chỉ cần ghi lại màn hình sau cú bấm
     flash('#3dd68c'); setInfo();
-  };
+  }
   const isClickable = el => el.matches(SEMANTIC) || getComputedStyle(el).cursor === 'pointer';
   // cú bấm không làm đổi màn và không làm trang thay đổi gì thì hạ thành bước "chỉ tô sáng"
   const STATE_CLASS = /check|select|activ|expand|open|show|collaps/i;
-  function watchEffect(step) {
+  // strict: phần tử trông không bấm được. Trang có số liệu nhảy liên tục, nên chỉ tin các thay đổi rõ ràng: màn hình đổi,
+  // trạng thái chọn/mở đổi, lớp phủ bật ra, hoặc cả một khối được vẽ thêm hay gỡ đi. Thay đổi lặt vặt và việc cuộn thì không tính.
+  function watchEffect(step, strict) {
     const before = context();
     let changed = false;
+    const bigNode = (n, m) => !strict || !!(m.target.closest && m.target.closest('.cdk-overlay-container')) || n.matches(POPUP) || n.querySelectorAll('*').length >= 3;
     const mo = new MutationObserver(list => {
       for (const m of list) {
         if (isUi(m.target)) continue;
         if (m.type === 'childList') {
-          for (const n of [...m.addedNodes, ...m.removedNodes]) if (n.nodeType === 1 && !isUi(n) && !/ripple/i.test(n.className && n.className.baseVal === undefined ? n.className : '')) changed = true;
+          for (const n of [...m.addedNodes, ...m.removedNodes]) if (n.nodeType === 1 && !isUi(n) && !/ripple/i.test(n.className && n.className.baseVal === undefined ? n.className : '') && bigNode(n, m)) changed = true;
         } else if (m.attributeName === 'class') {
           const a = new Set((m.oldValue || '').split(/\s+/)), b = m.target.classList;
           for (const c of b) if (!a.has(c) && STATE_CLASS.test(c)) changed = true;
@@ -576,19 +733,41 @@
       }
     });
     mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeOldValue: true, attributeFilter: ['class', 'aria-checked', 'aria-selected', 'aria-expanded', 'aria-pressed'] });
+    const onScroll = () => { if (!strict) changed = true; }; // cú bấm làm trang cuộn tới một mục cũng là có tác dụng
+    document.addEventListener('scroll', onScroll, true);
     setTimeout(() => {
-      mo.disconnect();
+      mo.disconnect(); document.removeEventListener('scroll', onScroll, true);
       step.after = context(); // màn hình sau cú bấm; ở bước cuối, đây là "màn cuối" của tour
       if (!changed && sameCtx(step.after, before)) { step.kind = 'info'; setInfo(); }
     }, 700);
   }
-  const onUp = e => { if (recording && e.altKey && !isUi(e.target)) e.stopImmediatePropagation(); else if (!recording && !isUi(e.target)) gate(e, false); };
+  const onUp = e => {
+    if (isUi(e.target)) return;
+    if (!recording) return gate(e, false);
+    if (e.altKey) e.stopImmediatePropagation();
+    // Nhả chuột tại chỗ mà không có sự kiện click theo sau (app đã xử lý lúc nhấn xuống rồi gỡ phần tử đi): vẫn ghi thành một bước,
+    // bằng dấu vân tay đã lấy lúc nhấn xuống. Kéo thả hay cuộn (chuột đã di chuyển) thì không ghi.
+    if (e.type !== 'pointerup' || !pending) return;
+    const p = pending;
+    if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > 8 || performance.now() - p.t > 800) return;
+    setTimeout(() => {
+      if (!recording || pending !== p) return;
+      pending = null; lastCap = performance.now();
+      // chỉ coi là "đã được xử lý lúc nhấn xuống" khi phần tử vốn bấm được và giờ đã biến mất khỏi trang
+      commit(p.el, p.fp, p.alt, p.clickable && !p.el.isConnected);
+    }, 150);
+  };
 
   // --- phát: chỉ cho bấm vào đích; bấm đúng đích ở bước "thao tác" thì sang bước sau
   function gate(e, isClick) {
     if (playing < 0 || !target) return;
     const st = steps[playing], inside = target.contains(e.target);
-    if (inside && st.kind !== 'info' && st.kind !== 'hover') { if (isClick && st.kind === 'click') { const i = playing; advancing = true; setTimeout(() => { if (playing === i) show(i + 1); }, 300); } return; }
+    // một hộp thoại không chứa đích đang che màn hình (quảng cáo, thông báo): để người dùng thao tác trong nó mà đóng đi
+    const d = topDialog();
+    if (d && !d.contains(target) && e.target.closest && (d.contains(e.target) || e.target.closest('.cdk-overlay-container'))) return;
+    // bước "chỉ tô sáng": không chặn cú bấm vào chính đích (nếu nó có tác dụng thì bộ theo dõi bên dưới sẽ dẫn tiếp), nhưng không tự sang bước
+    if (inside && st.kind === 'info') return;
+    if (inside && st.kind !== 'hover') { if (isClick && st.kind === 'click') { const i = playing; advancing = true; setTimeout(() => { if (playing === i) show(i + 1); }, 300); } return; }
     e.stopImmediatePropagation();
     if (isClick) { e.preventDefault(); flash('#fff'); }
   }
@@ -602,12 +781,13 @@
   }
   function stop() { recording = false; pending = null; popMo.disconnect(); bRec.textContent = '● Ghi'; bRec.style.background = '#2a2f3a'; target = null; box.style.display = 'none'; cancelAnimationFrame(raf); setInfo(); }
   function stopPlay(msg) {
-    token++; directRun++; playing = -1; atEnd = false; choice = null; bClose.style.display = 'none';
+    token++; directRun++; playing = -1; atEnd = false; choice = null; resumeAt = -1; bClose.style.display = 'none';
     if (fullSteps) { steps.length = 0; steps.push(...fullSteps); fullSteps = null; }
     tip.style.display = 'none'; box.style.display = 'none'; target = null; cancelAnimationFrame(raf); setInfo(msg);
   }
 
-  // chờ đến khi màn hình của bước hiện ra và tìm được đích
+  const sure = fp => find(fp).status === 'ok'; // tìm thấy và không mơ hồ
+  // chờ đến khi màn hình của bước hiện ra và tìm được đích (kết quả mơ hồ không tính là tìm được)
   // alt: dấu vân tay của bước kế; nếu màn hình đã ở trạng thái của bước kế thì bỏ qua bước này
   // alts: các bước kế tiếp [{fp, idx}]. Nếu đích đang chờ không xuất hiện mà đích của một bước sau đã hiện ổn định
   // (bước này đã được làm sẵn, ví dụ menu đã mở rộng từ trước) thì trả về { skipTo: idx }.
@@ -622,10 +802,10 @@
       function tryIt() {
         if (my !== token) return fin(null);
         last = find(fp);
-        if (last.el) return fin(last);
+        if (last.status === 'ok') return fin(last);
         if (alts) {
           let hit = -1;
-          for (const a of alts) { const r = find(a.fp); if (r.el && (!menuOnly || menuOf(r.el))) { hit = a.idx; break; } }
+          for (const a of alts) { const r = find(a.fp); if (r.status === 'ok' && (!menuOnly || menuOf(r.el))) { hit = a.idx; break; } }
           if (hit < 0) seenIdx = -1;
           else if (hit !== seenIdx) { seenIdx = hit; seenT = performance.now(); }
           else if (performance.now() - seenT >= (menuOnly ? 400 : 1500)) return fin({ skipTo: hit });
@@ -638,12 +818,30 @@
     });
   }
 
+  // hộp thoại đang che màn hình mà không bước nào của tour diễn ra trong nó (quảng cáo, thông báo bất chợt)
+  const foreignDialog = () => { const d = topDialog(); if (!d) return false; const k = dialogKey(d); return !steps.some(s => s.fp.ctx.dialog === k); };
+  // Tạm ngừng dẫn cho tới khi người dùng đóng hộp thoại lạ, rồi phát tiếp từ đúng chỗ. Không chặn cú bấm nào, không tải lại trang.
+  function holdForDialog() {
+    const my = ++token;
+    playing = -1; target = null; box.style.display = 'none'; cancelAnimationFrame(raf);
+    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
+    rich(tipText, 'Hãy đóng hộp thoại đang che màn hình, tour sẽ tự tiếp tục.'); tipMeta.textContent = ''; setBtns(null, 'Dừng');
+    setInfo('Chờ đóng hộp thoại');
+    const timer = setInterval(() => { if (my !== token) return clearInterval(timer); if (!foreignDialog()) { clearInterval(timer); play(); } }, 300);
+  }
+  // Trong lúc đang tô sáng một đích: màn hình đổi dưới chân (hộp thoại bật lên, đích bị gỡ hay trượt ra ngoài) thì tìm lại.
+  function watchStep() {
+    if (playing < 0 || !target || advancing || recording) return;
+    const i = playing, st = steps[i];
+    if (foreignDialog()) return holdForDialog();
+    if (!target.isConnected || !visible(target) || offscreen(target) || context().dialog !== st.fp.ctx.dialog) show(i);
+  }
   async function show(i) {
     if (i >= steps.length) return stopPlay(`Xong tour · ${steps.length} bước`);
     playing = i; target = null; advancing = false; box.style.display = 'none';
     const st = steps[i], nx = steps[i + 1], name = st.title || nameOf(st.fp), head = `Bước ${i + 1}/${steps.length}`;
     // bước rê chuột mà đích của bước sau đã hiện sẵn thì không cần rê nữa
-    if (st.kind === 'hover' && nx && find(nx.fp).el) return show(i + 1);
+    if (st.kind === 'hover' && nx && sure(nx.fp)) return show(i + 1);
     box.style.borderColor = '#e5484d'; box.style.boxShadow = '0 0 0 9999px rgba(0,0,0,.5)';
     tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
     // nút Tiếp chỉ có ở bước nhập và bước chỉ tô sáng; bước cần bấm hoặc rê chuột thì người dùng phải tự làm
@@ -655,15 +853,21 @@
     if (!r || playing !== i) return;
     if (r.skipTo != null) return show(r.skipTo);
     setInfo(`${head}: ${r.status}`);
-    if (!r.el) {
-      rich(tipText, `${head}: không tìm thấy «${name}»` + (r.expected ? `\nCần ở màn: ${r.expected.path} ${r.expected.dialog} ${r.expected.step}` : ''));
+    if (r.status !== 'ok') {
+      rich(tipText, r.status === 'ambiguous'
+        ? `${head}: có nhiều phần tử giống «${name}» nên chưa xác định chắc được đích`
+        : `${head}: không tìm thấy «${name}»` + (r.expected ? `\nCần ở màn: ${r.expected.path} ${r.expected.dialog} ${r.expected.step}` : ''));
       tipMeta.textContent = r.status;
+      // không bỏ cuộc: tiếp tục theo dõi, đích hiện ra sau (người dùng tự mở menu, dữ liệu tải xong) thì dẫn tiếp
+      const again = await waitFind(st.fp, 600000, after(i + 1, 2));
+      if (again && playing === i) { if (again.skipTo != null) show(again.skipTo); else if (again.status === 'ok') show(i); }
       return;
     }
+    resumeAt = i;
     target = r.el;
     r.el.scrollIntoView({ block: 'center', inline: 'nearest' });
     rich(tipText, `${head}: ` + (st.note || (st.kind === 'click' ? `Bấm vào «${name}» để tiếp tục` : st.kind === 'hover' ? `Rê chuột vào «${name}»` : st.kind === 'input' ? `Nhập vào ô «${name}», xong bấm Tiếp` : name)));
-    tipMeta.textContent = `khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms` + (r.status === 'ambiguous' ? ' · ⚠ mơ hồ' : '');
+    tipMeta.textContent = `khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`;
     // bước cuối: nút thành "Kết thúc". Bước có nút Tiếp thì chỉ còn một nút Kết thúc; bước phải tự bấm thì nút Dừng đổi tên.
     const lastStep = i === steps.length - 1, manual = st.kind === 'input' || st.kind === 'info';
     if (lastStep) setBtns(manual ? 'Kết thúc' : null, manual ? null : 'Kết thúc');
@@ -671,7 +875,7 @@
     // bước rê chuột: sang bước sau ngay khi đích của bước sau hiện ra
     if (st.kind === 'hover' && nx) {
       const r2 = await waitFind(nx.fp, 120000, after(i + 2, 2), true);
-      if (r2 && playing === i) { if (r2.skipTo != null) show(r2.skipTo); else if (r2.el) show(i + 1); }
+      if (r2 && playing === i) { if (r2.skipTo != null) show(r2.skipTo); else if (r2.status === 'ok') show(i + 1); }
     }
   }
   // bước đầu tiên thuộc màn đang đứng (cùng đường dẫn, hộp thoại, bước); ưu tiên bước đã tìm thấy đích
@@ -682,7 +886,7 @@
     for (let i = 0; i < steps.length; i++) {
       if (!sameCtx(steps[i].fp.ctx, c)) continue;
       if (first < 0) first = i;
-      if (find(steps[i].fp).el) return i;
+      if (sure(steps[i].fp)) return i;
     }
     return first;
   }
@@ -720,18 +924,22 @@
     if (recording) stop();
     if (!steps.length) return setInfo('Chưa có bước nào');
     atEnd = false;
+    // có hộp thoại lạ đang che màn hình: chờ người dùng đóng nó trước, không vội về màn bắt đầu hay tải lại trang
+    if (foreignDialog()) return holdForDialog();
     const c = context(), n = steps.length - 1, last = steps[n];
+    // lượt trước đang dở ở một bước mà đích của nó giờ đã có trên màn hình: đi tiếp từ bước đó, không quay về bước đầu
+    if (resumeAt > 0 && resumeAt <= n && sameCtx(steps[resumeAt].fp.ctx, c) && sure(steps[resumeAt].fp)) return show(resumeAt);
     let first = -1;
     for (let i = 0; i <= n; i++) {
       if (!sameCtx(steps[i].fp.ctx, c)) continue;
       if (first < 0) first = i;
-      if (find(steps[i].fp).el) return show(i);
+      if (sure(steps[i].fp)) return show(i);
     }
     // không bước nào tìm thấy đích: nếu màn này là màn của (hoặc sau) bước cuối thì coi như đã ở cuối tour
     if ((last.after && sameCtx(last.after, c)) || sameCtx(last.fp.ctx, c)) {
-      const r = sameCtx(last.fp.ctx, c) ? await waitFind(last.fp, 1500) : { el: null }; // chờ một nhịp phòng khi màn chưa vẽ xong
+      const r = sameCtx(last.fp.ctx, c) ? await waitFind(last.fp, 1500) : { status: 'not-found' }; // chờ một nhịp phòng khi màn chưa vẽ xong
       if (!r) return;
-      return r.el ? show(n) : endNotice();
+      return r.status === 'not-found' ? endNotice() : show(n); // 'ambiguous': show() sẽ báo chưa xác định chắc được đích
     }
     if (first >= 0) show(first); else goStart();
   }
@@ -773,7 +981,7 @@
     if (steps[first].fp.ctx.dialog) return play(); // chặng cuối bắt đầu trong một hộp thoại: không tới được bằng đường dẫn, quay về dẫn từng bước
     const c = context();
     let start = -1;
-    for (let i = first; i < n && start < 0; i++) if (sameCtx(steps[i].fp.ctx, c) && find(steps[i].fp).el) start = i; // đang đứng sẵn giữa chặng
+    for (let i = first; i < n && start < 0; i++) if (sameCtx(steps[i].fp.ctx, c) && sure(steps[i].fp)) start = i; // đang đứng sẵn giữa chặng
     if (start < 0) {
       if (topDialog()) pressEsc();
       if (location.pathname !== steps[first].fp.ctx.path) navTo(steps[first].fp.ctx.path);
@@ -786,7 +994,7 @@
       const r = await waitFind(st.fp, 6000, steps.slice(i + 1, i + 3).map((x, k) => ({ fp: x.fp, idx: i + 1 + k })));
       if (!r || !alive()) return;
       if (r.skipTo != null) { i = r.skipTo - 1; continue; } // bước này đã được làm sẵn
-      if (!r.el || st.kind === 'input') { directRun++; return show(i); } // không tự làm được (không thấy đích, hoặc cần người dùng nhập): dẫn từng bước từ đây
+      if (r.status !== 'ok' || st.kind === 'input') { directRun++; return show(i); } // không tự làm được (không thấy đích, hoặc cần người dùng nhập): dẫn từng bước từ đây
       if (st.kind === 'hover') hoverOn(r.el);
       else { r.el.scrollIntoView({ block: 'center', inline: 'nearest' }); r.el.click(); }
       await sleep(350);
@@ -805,10 +1013,45 @@
     return opts.mode === 'direct' ? direct() : play();
   }
 
+  // Dùng cho kiểm thử tự động: tìm đích của bước thứ i (chờ tối đa opts.timeout), cuộn nó vào tầm nhìn và trả về toạ độ.
+  // Không tô sáng, không chặn cú bấm, không tự bấm: trình điều khiển bên ngoài dùng toạ độ này để rê hoặc bấm bằng chuột thật.
+  async function locate(i, opts = {}) {
+    const st = steps[i];
+    if (!st) return { index: i, status: 'no-step' };
+    const t0 = performance.now();
+    const r = await waitFind(st.fp, opts.timeout || 8000, steps.slice(i + 1, i + 3).map((x, k) => ({ fp: x.fp, idx: i + 1 + k })));
+    const out = { index: i, kind: st.kind, name: st.title || nameOf(st.fp), waited: Math.round(performance.now() - t0), context: context(), expected: st.fp.ctx };
+    if (!r) return { ...out, status: 'cancelled' };
+    if (r.skipTo != null) return { ...out, status: 'skipped', skipTo: r.skipTo }; // bước này đã được làm sẵn
+    if (r.status !== 'ok') return { ...out, status: r.status, score: +(r.score || 0).toFixed(3) }; // gồm cả 'ambiguous': không trả toạ độ, để không ai bấm nhầm
+    r.el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    await sleep(150);
+    const b = r.el.getBoundingClientRect();
+    return { ...out, status: r.status, score: +r.score.toFixed(3), via: r.via, drift: !!r.drift, ms: r.ms, rect: { x: b.left, y: b.top, w: b.width, h: b.height } };
+  }
+
   // ---------- máy chủ lưu tour (thư mục server/) ----------
   const SERVER = String(window.TOURFP_SERVER || 'http://localhost:8000').replace(/\/$/, '');
   // Chép vào clipboard NGAY trong cú bấm. Nhiều trang (kể cả TCInvest) từ chối quyền ghi clipboard kiểu mới,
   // nên chỉ còn cách cũ, và cách cũ chỉ chạy được khi đang ở trong một cú bấm của người dùng.
+  // Lúc ghi, thư viện có thể chưa nghe được hết phản hồi API nên một tiêu đề neo là dữ liệu (tên khách hàng, mã) có thể lọt vào.
+  // Trước khi tour rời khỏi trang (lưu, chép, xuất) thì rà lại và bỏ các tiêu đề neo giờ đã biết là giá trị API.
+  function scrub() {
+    let n = 0;
+    readStores(); // app có thể vừa lưu hồ sơ sau lúc thư viện khởi động
+    for (const st of steps) {
+      const fp = st.fp;
+      if (!fp) continue;
+      if (fp.anchor && isData(fp.anchor)) { fp.anchor = ''; fp.anchorSkip = 0; n++; }
+      // chữ nguyên văn và nhãn lấy từ thuộc tính (title, aria-label) cũng có thể là tên người: bỏ, phần tử vẫn còn các tín hiệu khác
+      if (fp.exact && isPersonal(fp.exact)) { fp.exact = ''; n++; }
+      if (fp.label && isPersonal(fp.label)) {
+        // nhãn là dữ liệu cá nhân: xoá chữ đi, chỉ giữ cấu trúc. Phần tử sẽ được tìm theo icon, thuộc tính, vị trí.
+        fp.label = ''; fp.segs = []; fp.soft = []; if (fp.loose) delete fp.loose; n++;
+      }
+    }
+    return n;
+  }
   function copyNow(text) {
     const ta = mk('textarea', 'position:fixed;left:0;top:0;opacity:0');
     ta.value = text; document.documentElement.append(ta); ta.select();
@@ -828,6 +1071,7 @@
   // Gọi được máy chủ: hỏi tên rồi gửi tour lên. Không gọi được: nút thành "Chép JSON" và chép ngay trong cú bấm,
   // để dán vào hộp Thêm tour của trang quản trị.
   async function save() {
+    scrub();
     if (recording) stop();
     if (!steps.length) return setInfo('Chưa có bước nào để lưu');
     if (serverOk === false) {
@@ -882,7 +1126,7 @@
   bNext.onclick = () => { if (choice) pick('guide'); else if (atEnd) { atEnd = false; goStart(); } else show(playing + 1); };
   bStop.onclick = () => { if (choice) pick('direct'); else stopPlay(); };
   bClose.onclick = () => stopPlay();
-  const L = [['mousemove', onMove], ['pointerdown', onDown], ['mousedown', onUp], ['pointerup', onUp], ['mouseup', onUp], ['click', onClick]];
+  const L = [['mousemove', onMove], ['mouseover', onOver], ['pointerdown', onDown], ['mousedown', onUp], ['pointerup', onUp], ['mouseup', onUp], ['click', onClick]];
   for (const [n, h] of L) document.addEventListener(n, h, true);
 
   function destroy() {
@@ -893,13 +1137,17 @@
   }
 
   window.TourFP = {
-    capture, captureAt: el => capture(clickableRoot(el)), isClickable, save, run, start, direct, ask,
+    capture, captureAt: el => capture(clickableRoot(el)), isClickable, save, run, start, direct, ask, locate,
     showPanel: (on = true) => { panel.style.display = on ? 'flex' : 'none'; }, find, score, context, clickables, record, stop, play, destroy, steps,
     apiStats: () => ({ responses: api.responses, values: api.set.size }),
     isApiValue,
     state: () => ({ recording, playing, steps: steps.length, target: target ? nameOf(capture(target)) : null, tip: tip.style.display === 'block' ? tipText.textContent : '' }),
-    export: () => JSON.stringify(steps, null, 2),
-    load: a => { fullSteps = null; steps.length = 0; steps.push(...a); setInfo(); },
+    export: () => { scrub(); return JSON.stringify(steps, null, 2); },
+    // tour nạp từ ngoài có thể đã bị lược các trường rỗng: điền lại giá trị mặc định để việc so khớp không lệch hay ném lỗi
+    load: a => {
+      for (const st of a) if (st && st.fp) st.fp = Object.assign({ tag: '', role: '', label: '', segs: [], soft: [], exact: '', key: {}, attr: {}, icon: '', comp: [], anchor: '' }, st.fp);
+      fullSteps = null; steps.length = 0; steps.push(...a); setInfo();
+    },
   };
 
   // vừa bị tải lại trang giữa lúc đưa về màn bắt đầu: nạp lại tour và phát tiếp (không điều hướng lần nữa)

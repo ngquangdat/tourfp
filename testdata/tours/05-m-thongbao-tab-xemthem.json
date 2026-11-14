@@ -1,0 +1,35 @@
+{
+  "name": "Mobile: chuông Thông báo → tab Khác → tab Quan tâm → 'Xem thêm' của thông báo thứ 2",
+  "layout": "mobile",
+  "start": "/home",
+  "covers": [
+    "nút-icon",
+    "phần-tử-không-cursor-pointer",
+    "panel-trượt-ngoài-màn",
+    "tab",
+    "nth",
+    "danh-sách-API",
+    "accordion-xem-thêm",
+    "phần-tử-phải-cuộn"
+  ],
+  "recorded": "Vòng 3 (fp v4): TourFP.record + chuột thật. 'Xem thêm' thứ 2 nằm dưới màn, được cuộn tới bằng scrollIntoView trong JS trước khi bấm",
+  "steps": [
+    {"kind":"click","fp":{"v":4,"tag":"tcbs-icon","key":{"name":"Notification"},"icon":"Notification","comp":["app-toolbar","app-root"],"anchor":"Tìm kiếm","anchorSkip":0,"pos":[0,1],"hint":"app-toolbar tcbs-icon[name=\"Notification\"]","ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"role":"","label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"attr":{}},"after":{"path":"/home","layout":"mobile","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":4,"tag":"div","label":"Khác","segs":["Khác"],"comp":["app-notification","app-root"],"anchor":"Quan tâm","anchorSkip":0,"pos":[1,2],"ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""},"after":{"path":"/home","layout":"mobile","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":4,"tag":"div","label":"Quan tâm","segs":["Quan tâm"],"comp":["app-notification","app-root"],"anchor":"Tin nhắn","anchorSkip":0,"pos":[0,2],"ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""},"after":{"path":"/home","layout":"mobile","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":4,"tag":"span","label":"Xem thêm","segs":["Xem thêm"],"comp":["app-notification","app-root"],"anchorSkip":0,"pos":[1,2],"ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"twins":7,"sig":"span<div<div<div<div<div","nth":1,"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/home","layout":"mobile","dialog":"","step":""}}
+  ],
+  "expect": [
+    "Tô sáng chuông; bấm được để mở panel thông báo",
+    "Chờ panel trượt vào rồi mới tô sáng tab Khác (không tô bản đang ẩn ngoài màn)",
+    "Tô sáng tab Quan tâm",
+    "Cuộn tới và tô sáng 'Xem thêm' của thông báo thứ 2"
+  ],
+  "observed": [
+    "OK: hint 100%; bước giờ là click (vòng 2: info, bị chặn); bấm mở panel, tour tự sang bước 2",
+    "OK: lúc đầu 'đang chờ màn hình…' (bản ngoài màn bị loại — vòng 2 tô x≈1272), panel vào thì tô đúng (643,72)",
+    "OK: 100%",
+    "OK: thứ 2/8, tự cuộn tới, đúng thông báo; 'Xong tour · 4 bước'"
+  ],
+  "notes": "Vòng 3 chạy hết không cần can thiệp. Thứ tự 'Xem thêm' vẫn phụ thuộc danh sách thông báo (thông báo mới/đang mở rộng làm lệch — ca (b) của lỗi 6.4 chưa sửa)."
+}

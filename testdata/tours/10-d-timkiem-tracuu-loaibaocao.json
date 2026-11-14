@@ -1,0 +1,35 @@
+{
+  "name": "Desktop: ô Tìm tính năng (thanh trên) → gõ rồi xoá → Tra cứu lịch sử → lọc 'Loại báo cáo' = Giảm tiền",
+  "layout": "desktop",
+  "start": "/tcw",
+  "covers": [
+    "input",
+    "hộp-thoại-tìm-kiếm",
+    "after-đổi-màn",
+    "mat-select",
+    "mat-option"
+  ],
+  "recorded": "TourFP.record + chuột thật. Gõ 'FPT' rồi xoá hết. Bỏ 2 bước input trùng sinh ra do triple-click",
+  "steps": [
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Tìm tính năng, mã CK......","segs":["Tìm tính năng, mã CK......"],"icon":"Search","comp":["app-toolbar","app-root"],"anchor":"TCWealth","anchorSkip":0,"pos":[3,8],"ctx":{"path":"/tcw","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"hint":""},"after":{"path":"/tcw","layout":"desktop","dialog":"app-home-searching-dialog","step":""}},
+    {"kind":"input","fp":{"v":3,"tag":"input","label":"Tìm tính năng, mã CK...","key":{"formcontrolname":"searchingInput"},"attr":{"placeholder":"Tìm tính năng, mã CK..."},"comp":["app-home-searching-dialog"],"anchorSkip":0,"pos":[0,1],"hint":"app-home-searching-dialog input[formcontrolname=\"searchingInput\"]","ctx":{"path":"/tcw","layout":"desktop","dialog":"app-home-searching-dialog","step":""},"role":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"icon":"","anchor":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Tra cứu lịch sử","segs":["Tra cứu lịch sử"],"comp":["app-home-searching-dialog"],"anchor":"Hiệu quả đầu tư","anchorSkip":0,"pos":[0,2],"ctx":{"path":"/tcw","layout":"desktop","dialog":"app-home-searching-dialog","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""},"after":{"path":"/lookup","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"mat-select","role":"combobox","key":{"formcontrolname":"transactionName"},"comp":["app-statement-money","app-lookup-index","app-lookup"],"anchor":"Loại báo cáo","anchorSkip":0,"pos":[0,1],"hint":"app-statement-money mat-select[formcontrolname=\"transactionName\"]","ctx":{"path":"/lookup","layout":"desktop","dialog":"","step":""},"label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"attr":{},"icon":""},"after":{"path":"/lookup","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"mat-option","role":"option","label":"Giảm tiền","segs":["Giảm tiền"],"anchor":"Tăng tiền","anchorSkip":0,"pos":[2,3],"ctx":{"path":"/lookup","layout":"desktop","dialog":"","step":""},"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","comp":[],"hint":""}}
+  ],
+  "expect": [
+    "Tô sáng ô tìm kiếm ở thanh trên",
+    "Tô sáng ô nhập; người dùng gõ rồi bấm Tiếp",
+    "Tô sáng kết quả 'Tra cứu lịch sử'",
+    "Tô sáng ô chọn 'Loại báo cáo'",
+    "Tô sáng mục 'Giảm tiền'"
+  ],
+  "observed": [
+    "OK: 100%",
+    "OK: qua hint 100%. Lưu ý: trong lúc phát, mọi cú bấm ngoài đích bị chặn — sau khi bấm Tiếp không thể bấm lại vào ô để sửa/xoá chữ (phải chờ bước sau rơi vào trạng thái 'đang chờ' mới bấm được)",
+    "OK nhưng chỉ 76%: danh sách kết quả đổi theo chữ đã gõ ('FP' → không thấy, 'đang chờ màn hình…'); xoá hết chữ thì thấy lại, khớp 76% (anchor khác)",
+    "OK: qua hint 100%",
+    "OK: 100%; 'Xong tour · 5 bước' sau khoảng 2–3 s"
+  ],
+  "notes": "Quét /lookup desktop: 56 phần tử, tự khớp 56/0/0/0; sau tải lại 51/2/1/2 — 2 'sai' là cùng ô chọn nhưng chữ giá trị đã đổi (Giảm tiền ↔ Tất cả), 2 'không thấy' là mục của danh sách chọn chưa mở. | Vòng 3: không ghi lại; fp v3, đã thêm đủ trường mặc định. Hộp thoại tìm kiếm không mở trong phiên này (403)."
+}

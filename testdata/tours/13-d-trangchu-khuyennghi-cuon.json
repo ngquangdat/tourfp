@@ -1,0 +1,29 @@
+{
+  "name": "Desktop: Trang chủ → khối Khuyến nghị đầu tư (phải cuộn) → tab Đang theo dõi → ô chọn 'Tất cả' → tiêu đề khối (Alt+bấm)",
+  "layout": "desktop",
+  "start": "/home",
+  "covers": [
+    "tab",
+    "mat-select",
+    "info(alt-click)",
+    "phần-tử-phải-cuộn",
+    "cuộn-trong-khung"
+  ],
+  "recorded": "TourFP.record + chuột thật. Bước 2–3 ghi sau khi khung trang chủ đã cuộn xuống (cuộn bằng scrollTop trong JS vì cuộn chuột của công cụ không có tác dụng trên khung này)",
+  "steps": [
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Đang theo dõi","segs":["Đang theo dõi"],"comp":["app-home-history-recommend","app-home-item-base","app-home"],"anchorSkip":0,"pos":[0,2],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"mat-select","role":"combobox","attr":{"panelclass":"mat-select-theme-default"},"comp":["app-home-history-recommend","app-home-item-base","app-home"],"anchor":"Đang theo dõi","anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"icon":"","hint":""},"after":{"path":"/home","layout":"desktop","dialog":"","step":""}},
+    {"kind":"info","fp":{"v":3,"tag":"span","label":"Khuyến nghị đầu tư","segs":["Khuyến nghị đầu tư"],"comp":["app-home-item-base","app-home","app-root"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""}}
+  ],
+  "expect": [
+    "Tô sáng tab 'Đang theo dõi' của khối Khuyến nghị",
+    "Cuộn khung tới và tô sáng ô chọn 'Tất cả'",
+    "Tô sáng tiêu đề khối, nút Kết thúc"
+  ],
+  "observed": [
+    "OK: 100%",
+    "OK: 100% nhưng thư viện gọi scrollIntoView sau khi tô sáng nên đích dịch từ y≈464 lên y≈258 (khung 800×500) — cú bấm theo toạ độ cũ bị chặn, phải bấm lại theo vị trí mới",
+    "OK: 100%; danh sách chọn vẫn đang mở đè lên tiêu đề; 'Xong tour · 3 bước'"
+  ],
+  "notes": "Quét /home desktop: 131 phần tử, tự khớp 131/0/0/0 (vòng 1: 201/0/11/0 trên 212); sau tải lại 126/4/0/1 — 4 'ok nhưng sai' đi theo nth (chú giải khối Tài sản 'Tiền', 'Trái phiếu' và 2 span) vì khối được vẽ thêm/khác giữa 2 lần tải. | Vòng 3: không ghi lại; fp v3, đã thêm đủ trường mặc định. Kiểm find trên /home: 3/3 bước tìm đúng 100% (v3 vẫn chạy)."
+}

@@ -5,18 +5,22 @@ Cấu hình qua biến môi trường:
   TOURFP_TARGET  trang web mà tour chạy trên đó (mặc định https://tcinvest.tcbs.com.vn)
   TOURFP_DATA    thư mục chứa file SQLite (mặc định server/data)
   TOURFP_AI      off | bedrock | litellm: mô hình dùng cho trợ lý tìm tour (xem ai.py)
+  TOURFP_TEST_HEADLESS  mặc định ban đầu cho việc hiện cửa sổ Chrome khi kiểm thử: 1 chạy ẩn, 0 hiện cửa sổ (mặc định: hiện).
+                        Sau đó chỉnh bằng ô "Hiện cửa sổ Chrome" trên trang quản trị.
 
 Không có đăng nhập: đây là công cụ nội bộ, chỉ nên nghe trên 127.0.0.1.
 """
 from __future__ import annotations
 
+import asyncio
+import datetime
 import inspect
 import json
 import os
 import sqlite3
 import time
 import uuid
-from contextlib import closing
+from contextlib import asynccontextmanager, closing
 from pathlib import Path
 from typing import Any, Literal
 
@@ -27,18 +31,31 @@ from pydantic import BaseModel, Field, field_validator
 
 import ai
 import assist
+import runner
 
 BASE = Path(__file__).resolve().parent
 LIB = BASE.parent / "tourfp.js"
 DATA = Path(os.environ.get("TOURFP_DATA", BASE / "data"))
 DB = DATA / "tours.db"
 TARGET = os.environ.get("TOURFP_TARGET", "https://tcinvest.tcbs.com.vn").rstrip("/")
+PROFILE = DATA / "browser-profile"  # hồ sơ Chrome riêng của kiểm thử tự động, giữ phiên đăng nhập
+# mặc định mở Chrome có cửa sổ để thấy được bộ chạy đang làm gì; người quản trị đổi được trên trang (lưu trong settings)
+SHOW_DEFAULT = os.environ.get("TOURFP_TEST_HEADLESS", "0") == "0"
 
 KINDS = {"click", "hover", "input", "info"}
 MAX_STEPS = 200
 MAX_BYTES = 2_000_000  # một tour vài chục bước chỉ khoảng vài chục KB
 
-app = FastAPI(title="TourFP admin", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    task = asyncio.create_task(scheduler())  # lịch chạy kiểm thử hằng ngày
+    try:
+        yield
+    finally:
+        task.cancel()
+
+
+app = FastAPI(title="TourFP admin", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 # Thư viện chạy trên trang đích gọi sang đây để lưu và tải tour.
 # Chrome còn hỏi thêm quyền khi một trang công khai gọi vào máy cục bộ ("private network"); chỉ đồng ý cho trang đích.
@@ -75,7 +92,23 @@ def db() -> sqlite3.Connection:
                created_at REAL NOT NULL
            )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS test_runs (
+               id TEXT PRIMARY KEY, started_at REAL NOT NULL, finished_at REAL, trigger TEXT NOT NULL,
+               status TEXT NOT NULL, results TEXT NOT NULL DEFAULT '[]'
+           )"""
+    )
+    conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     return conn
+
+
+def get_setting(conn: sqlite3.Connection, key: str, default: Any = None) -> Any:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return json.loads(row["value"]) if row else default
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: Any) -> None:
+    conn.execute("INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, json.dumps(value)))
 
 
 def summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -273,6 +306,161 @@ def snippet(tour_id: str, mode: Literal["guide", "direct"] = "guide", to: int | 
         f";delete window.TOURFP_PLAYER;TourFP.load({row['steps']});TourFP.start({start});\n"
     )
     return Response(code, media_type="text/javascript; charset=utf-8", headers={"Cache-Control": "no-store"})
+
+
+# ---------- kiểm thử tự động ----------
+# Trạng thái lần chạy đang diễn ra (chỉ một lần chạy tại một thời điểm, vì chúng dùng chung một hồ sơ trình duyệt).
+test_state: dict[str, Any] = {"running": False, "login_open": False, "current": "", "done": 0, "total": 0, "error": None}
+_tasks: set[asyncio.Task] = set()  # giữ tham chiếu để tác vụ nền không bị thu hồi giữa chừng
+
+
+def _spawn(coro: Any) -> None:
+    task = asyncio.create_task(coro)
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)
+
+
+def _all_tours(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = conn.execute("SELECT * FROM tours ORDER BY created_at DESC").fetchall()
+    return [{**summary(r), "steps": json.loads(r["steps"])} for r in rows]
+
+
+def _counts(results: list[dict[str, Any]]) -> dict[str, int]:
+    c = {"pass": 0, "warn": 0, "fail": 0, "error": 0, "need_login": 0, "blocked": 0}
+    for r in results:
+        c[r["status"]] = c.get(r["status"], 0) + 1
+    return c
+
+
+async def do_test_run(trigger: str) -> None:
+    """Chạy kiểm thử mọi tour và lưu kết quả. trigger: 'manual' (bấm nút) hoặc 'schedule' (lịch hằng ngày)."""
+    if test_state["running"] or test_state["login_open"]:
+        return
+    with closing(db()) as conn:
+        tours = _all_tours(conn)
+        show = bool(get_setting(conn, "test_show_browser", SHOW_DEFAULT))
+    run_id, started = uuid.uuid4().hex[:12], time.time()
+    test_state.update(running=True, current="", done=0, total=len(tours), error=None)
+
+    def progress(done: int, total: int, name: str) -> None:
+        test_state.update(done=done, total=total, current=name)
+
+    status, results = "done", []
+    try:
+        results = await runner.run_all(tours, TARGET, PROFILE, LIB, not show, progress)
+        if any(r["status"] == "blocked" for r in results):
+            status = "blocked"
+        elif any(r["status"] == "need_login" for r in results):
+            status = "need_login"
+    except Exception as e:  # không mở được trình duyệt, chưa cài Playwright…
+        status = "error"
+        test_state["error"] = f"{type(e).__name__}: {e}"[:400]
+    finally:
+        with closing(db()) as conn, conn:
+            conn.execute(
+                "INSERT INTO test_runs VALUES (?, ?, ?, ?, ?, ?)",
+                (run_id, started, time.time(), trigger, status, json.dumps({"results": results, "error": test_state["error"]}, ensure_ascii=False)),
+            )
+            conn.execute("DELETE FROM test_runs WHERE id NOT IN (SELECT id FROM test_runs ORDER BY started_at DESC LIMIT 60)")
+        test_state.update(running=False, current="", done=len(results))
+
+
+async def do_login() -> None:
+    if test_state["running"] or test_state["login_open"]:
+        return
+    test_state.update(login_open=True, error=None)
+    try:
+        await runner.open_login(TARGET, PROFILE)
+    except Exception as e:
+        test_state["error"] = f"{type(e).__name__}: {e}"[:400]
+    finally:
+        test_state["login_open"] = False
+
+
+async def scheduler() -> None:
+    """Mỗi nửa phút xem đã tới giờ chạy hằng ngày chưa. Mỗi ngày chạy một lần; máy chủ bật muộn hơn giờ hẹn thì chạy bù ngay."""
+    while True:
+        await asyncio.sleep(30)
+        try:
+            with closing(db()) as conn:
+                sched = get_setting(conn, "test_schedule", {"enabled": False, "time": "08:30"})
+                last = get_setting(conn, "test_schedule_last", "")
+            now = datetime.datetime.now()
+            today = now.strftime("%Y-%m-%d")
+            if sched["enabled"] and last != today and now.strftime("%H:%M") >= sched["time"] and not (test_state["running"] or test_state["login_open"]):
+                with closing(db()) as conn, conn:
+                    set_setting(conn, "test_schedule_last", today)
+                _spawn(do_test_run("schedule"))
+        except Exception:
+            pass  # lỗi đọc cấu hình không được làm chết vòng lặp lịch
+
+
+def _run_view(row: sqlite3.Row, full: bool) -> dict[str, Any]:
+    data = json.loads(row["results"])
+    results = data.get("results", [])
+    out = {"id": row["id"], "started_at": row["started_at"], "finished_at": row["finished_at"], "trigger": row["trigger"],
+           "status": row["status"], "counts": _counts(results), "error": data.get("error")}
+    if full:
+        out["results"] = results
+    return out
+
+
+@app.get("/api/tests")
+async def tests_overview() -> dict[str, Any]:
+    try:
+        import playwright  # noqa: F401
+        available = True
+    except ImportError:
+        available = False
+    with closing(db()) as conn:
+        runs = conn.execute("SELECT * FROM test_runs ORDER BY started_at DESC LIMIT 14").fetchall()
+        sched = get_setting(conn, "test_schedule", {"enabled": False, "time": "08:30"})
+        show = bool(get_setting(conn, "test_show_browser", SHOW_DEFAULT))
+    return {
+        "available": available, **test_state, "schedule": sched, "show_browser": show,
+        "last": _run_view(runs[0], True) if runs else None,
+        "history": [_run_view(r, False) for r in runs],
+    }
+
+
+@app.post("/api/tests/run", status_code=202)
+async def tests_run() -> dict[str, Any]:
+    if test_state["running"] or test_state["login_open"]:
+        raise HTTPException(409, "Đang có một lần chạy hoặc cửa sổ đăng nhập đang mở")
+    _spawn(do_test_run("manual"))
+    return {"started": True}
+
+
+@app.post("/api/tests/login", status_code=202)
+async def tests_login() -> dict[str, Any]:
+    if test_state["running"] or test_state["login_open"]:
+        raise HTTPException(409, "Đang có một lần chạy hoặc cửa sổ đăng nhập đang mở")
+    _spawn(do_login())
+    return {"opened": True}
+
+
+class ScheduleIn(BaseModel):
+    enabled: bool
+    time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+@app.put("/api/tests/schedule")
+async def tests_schedule(body: ScheduleIn) -> dict[str, Any]:
+    with closing(db()) as conn, conn:
+        set_setting(conn, "test_schedule", {"enabled": body.enabled, "time": body.time})
+    return {"enabled": body.enabled, "time": body.time}
+
+
+class ShowBrowserIn(BaseModel):
+    show: bool
+
+
+@app.put("/api/tests/show-browser")
+async def tests_show_browser(body: ShowBrowserIn) -> dict[str, Any]:
+    """Bật/tắt việc mở Chrome có cửa sổ khi kiểm thử (áp dụng từ lần chạy sau)."""
+    with closing(db()) as conn, conn:
+        set_setting(conn, "test_show_browser", body.show)
+    return {"show_browser": body.show}
 
 
 # ---------- file tĩnh ----------

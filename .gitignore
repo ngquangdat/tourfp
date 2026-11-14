@@ -7,3 +7,7 @@ __pycache__/
 # cấu hình chạy thử của công cụ
 .claude/
 .DS_Store
+# khoá và token: không bao giờ đưa vào repo
+*token*.txt
+.npmrc
+*.key

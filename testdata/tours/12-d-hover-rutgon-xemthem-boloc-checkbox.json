@@ -1,0 +1,40 @@
+{
+  "name": "Desktop: rê Cổ phiếu → Rút gọn → Xem thêm → Bộ lọc → 2 checkbox",
+  "layout": "desktop",
+  "start": "/bond-v2",
+  "covers": [
+    "hover",
+    "accordion(rút-gọn/xem-thêm)",
+    "menu-rê-chuột",
+    "hộp-thoại",
+    "checkbox",
+    "nth",
+    "nhãn-mềm"
+  ],
+  "recorded": "TourFP.record + chuột thật. Lúc ghi đã bấm mỗi checkbox 2 lần (bật/tắt) nhưng lần 2 rơi vào lớp 'loading' nên ghi thành info; đã bỏ 2 bước đó và tự trả checkbox về trạng thái ban đầu. Lúc phát: play() cho bước 1–4, locate cho bước 5–6, KHÔNG bấm checkbox",
+  "steps": [
+    {"kind":"hover","fp":{"v":3,"tag":"div","label":"Cổ phiếu Cổ phiếu","segs":["Cổ phiếu","Cổ phiếu"],"cover":0.42,"icon":"assets/images/menu-icons/icon-sprites-other.svg#menu_icon_stock","comp":["app-menu-sidebar","app-root"],"anchor":"Tiền","anchorSkip":0,"pos":[1,7],"ctx":{"path":"/bond-v2","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"key":{},"attr":{},"hint":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Rút gọn","segs":["Rút gọn"],"cover":0.32,"icon":"arrow_drop_up","anchor":"iCopy","anchorSkip":0,"pos":[17,18],"ctx":{"path":"/bond-v2","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"key":{},"attr":{},"comp":[],"hint":""},"after":{"path":"/bond-v2","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Xem thêm","segs":["Xem thêm"],"cover":0.32,"icon":"arrow_drop_down","anchor":"Đặt lệnh điều kiện","anchorSkip":0,"pos":[5,6],"ctx":{"path":"/bond-v2","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"key":{},"attr":{},"comp":[],"hint":""},"after":{"path":"/bond-v2","layout":"desktop","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Bộ lọc","segs":["Bộ lọc"],"anchor":"Phân tích đầu tư","anchorSkip":0,"pos":[0,2],"ctx":{"path":"/bond-v2","layout":"desktop","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","comp":[],"hint":""},"after":{"path":"/bond-v2","layout":"desktop","dialog":"app-dialog-dynamic-watchlist","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"mat-checkbox","icon":"d:118bvgw","comp":["app-dialog-dynamic-watchlist"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/bond-v2","layout":"desktop","dialog":"app-dialog-dynamic-watchlist","step":""},"twins":6,"sig":"mat-checkbox<div<td<tr<tbody<table","nth":1,"role":"","label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"anchor":"","hint":""},"after":{"path":"/bond-v2","layout":"desktop","dialog":"app-dialog-dynamic-watchlist","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"mat-checkbox","label":"Có BCTC quý gần nhất","soft":["Có BCTC quý gần nhất"],"mixed":true,"dyn":1,"icon":"d:118bvgw","comp":["app-dialog-dynamic-watchlist"],"anchor":"Bộ lọc","anchorSkip":0,"pos":[0,1],"ctx":{"path":"/bond-v2","layout":"desktop","dialog":"app-dialog-dynamic-watchlist","step":""},"role":"","segs":[],"exact":"","cover":1,"key":{},"attr":{},"hint":""},"after":{"path":"/bond-v2","layout":"desktop","dialog":"app-dialog-dynamic-watchlist","step":""}}
+  ],
+  "expect": [
+    "Tô sáng mục Cổ phiếu ở sidebar; rê chuột thì sang bước 2",
+    "Tô sáng 'Rút gọn' (menu đang mở rộng)",
+    "Tô sáng 'Xem thêm'",
+    "Tô sáng 'Bộ lọc' → mở hộp thoại",
+    "Tô sáng checkbox của tiêu chí thứ 2",
+    "Tô sáng checkbox 'Có BCTC quý gần nhất'"
+  ],
+  "observed": [
+    "OK: 100%",
+    "OK: 100% (app nhớ menu đang mở rộng)",
+    "OK: 100%",
+    "OK: 100%",
+    "OK: thứ 2/5 — đúng checkbox tiêu chí thứ 2 (lúc ghi nhóm có 7, lúc phát 5 vì danh sách tiêu chí khác)",
+    "OK (locate): 100% dù nhãn là nhãn mềm (chữ này có trong JSON của API)"
+  ],
+  "notes": "Phát hiện khi ghi: lớp 'loading-dark.gif' của hộp thoại chặn cú bấm thứ hai vào checkbox trong khoảng 1 s; cú bấm đó vẫn được ghi (info, nhãn 'loading-dark.gif'). Checkbox đã được trả về như cũ. | Vòng 3: không ghi lại; fp v3, đã thêm đủ trường mặc định. Bước 1 (Cổ phiếu) tìm đúng 100% trên /home."
+}

@@ -1,0 +1,50 @@
+{
+  "name": "Mobile: Tài sản → lọc tiểu khoản → Lịch sử → tab TP → lọc trạng thái (mục trùng tên) → lịch",
+  "layout": "mobile",
+  "start": "/my-asset",
+  "covers": [
+    "tab",
+    "mat-select",
+    "mat-option",
+    "after-đổi-màn",
+    "info",
+    "nth(option-trùng-tên)",
+    "nút-icon(aria-label)",
+    "hộp-thoại(datepicker)"
+  ],
+  "recorded": "TourFP.record + chuột thật. Lọc tiểu khoản chỉ đổi cách xem tài sản, không đổi cài đặt",
+  "steps": [
+    {"kind":"click","fp":{"v":3,"tag":"div","role":"tab","label":"Tổng quan","segs":["Tổng quan"],"comp":["app-asset","app-root"],"anchorSkip":0,"pos":[0,14],"ctx":{"path":"/my-asset","layout":"mobile","dialog":"","step":""},"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/my-asset","layout":"mobile","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"mat-select","role":"combobox","attr":{"panelclass":"mat-select-theme-default mat-select-account-panel"},"comp":["app-asset-overview-v2","app-asset","app-root"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/my-asset","layout":"mobile","dialog":"","step":""},"label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"icon":"","anchor":"","hint":""},"after":{"path":"/my-asset","layout":"mobile","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"mat-option","role":"option","label":"Thường Mặc định","segs":["Thường","Mặc định"],"mixed":true,"cover":0.19,"anchor":"Tất cả","anchorSkip":0,"pos":[1,3],"ctx":{"path":"/my-asset","layout":"mobile","dialog":"","step":""},"soft":[],"exact":"","dyn":0,"key":{},"attr":{},"icon":"","comp":[],"hint":""},"after":{"path":"/my-asset","layout":"mobile","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Lịch sử","segs":["Lịch sử"],"icon":"d:1kd9rtg","comp":["app-navigation-bar","app-asset","app-root"],"anchor":"Tài sản","anchorSkip":0,"pos":[0,1],"ctx":{"path":"/my-asset","layout":"mobile","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"hint":""},"after":{"path":"/lookup","layout":"mobile","dialog":"","step":""}},
+    {"kind":"info","fp":{"v":3,"tag":"div","label":"LS GD Trái phiếu","segs":["LS GD Trái phiếu"],"comp":["app-lookup-index","app-lookup","app-root"],"anchor":"LS GD Cổ phiếu","anchorSkip":0,"pos":[2,5],"ctx":{"path":"/lookup","layout":"mobile","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""}},
+    {"kind":"click","fp":{"v":3,"tag":"mat-select","role":"combobox","key":{"formcontrolname":"status"},"comp":["app-bond-transaction-history","app-lookup-index","app-lookup"],"anchor":"Trạng thái","anchorSkip":0,"pos":[0,1],"hint":"app-bond-transaction-history mat-select[formcontrolname=\"status\"]","ctx":{"path":"/lookup","layout":"mobile","dialog":"","step":""},"label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"attr":{},"icon":""},"after":{"path":"/lookup","layout":"mobile","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"mat-option","role":"option","label":"Đã hủy","segs":["Đã hủy"],"anchorSkip":0,"pos":[5,6],"ctx":{"path":"/lookup","layout":"mobile","dialog":"","step":""},"twins":1,"sig":"mat-option[option]<div[listbox]<div<div<div<div","nth":1,"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","comp":[],"anchor":"","hint":""},"after":{"path":"/lookup","layout":"mobile","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"button","label":"Open calendar","attr":{"type":"button","aria-label":"Open calendar"},"icon":"d:15cpfrh","comp":["app-bond-transaction-history","app-lookup-index","app-lookup"],"anchor":"Từ ngày","anchorSkip":0,"pos":[0,1],"ctx":{"path":"/lookup","layout":"mobile","dialog":"","step":""},"twins":1,"role":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"hint":""},"after":{"path":"/lookup","layout":"mobile","dialog":"mat-datepicker-popup","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"button","label":"Previous month","attr":{"type":"button","aria-label":"Previous month"},"anchorSkip":0,"pos":[1,3],"ctx":{"path":"/lookup","layout":"mobile","dialog":"mat-datepicker-popup","step":""},"role":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"icon":"","comp":[],"anchor":"","hint":""},"after":{"path":"/lookup","layout":"mobile","dialog":"mat-datepicker-popup","step":""}}
+  ],
+  "expect": [
+    "Tô sáng tab Tổng quan",
+    "Tô sáng ô chọn tiểu khoản",
+    "Tô sáng mục 'Thường'",
+    "Tô sáng nút Lịch sử → sang /lookup",
+    "Tô sáng tab 'LS GD Trái phiếu'; bấm được để chuyển tab",
+    "Tô sáng ô 'Trạng thái' của form trái phiếu",
+    "Tô sáng mục 'Đã hủy' thứ 2",
+    "Tô sáng icon lịch của ô 'Từ ngày' (form trái phiếu)",
+    "Tô sáng nút 'Previous month'"
+  ],
+  "observed": [
+    "OK: 100%",
+    "OK: 100% (ô chọn không lấy chữ giá trị làm nhãn — đã sửa từ vòng 1)",
+    "OK: 100%",
+    "OK: 100%, sang /lookup",
+    "Đúng phần tử nhưng info (tab không có cursor:pointer) → bấm bị chặn, tab không đổi; Tiếp",
+    "BỎ QUA: form trái phiếu không hiện; lookahead không thấy bước 7",
+    "BỎ QUA",
+    "SAI NGỮ CẢNH: nhảy thẳng tới bước 8 và tô sáng icon lịch của form 'Sao kê tiền' (khớp 88%, comp khác) — không phải form đã ghi",
+    "OK: 100%; 'Xong tour · 9 bước' (dù bước 6–7 không làm)"
+  ],
+  "notes": "Quét datepicker: tự khớp 34/0/0/0. Sau tải lại, 10/34 ô ngày trả về ô cùng thứ tự của tháng khác (aria-label '# tháng # #' mất số tháng), coi như không so được. | Vòng 3: chưa ghi lại được — tải thẳng /my-asset bị 403; vẫn là fp v3."
+}

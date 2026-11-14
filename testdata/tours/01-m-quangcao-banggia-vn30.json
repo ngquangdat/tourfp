@@ -1,0 +1,38 @@
+{
+  "name": "Mobile: đóng quảng cáo → Bảng giá → chọn nhóm VN30 → dòng BSR",
+  "layout": "mobile",
+  "start": "/home",
+  "covers": [
+    "popup-quảng-cáo-lúc-ghi",
+    "click",
+    "after-đổi-màn",
+    "dropdown-toàn-màn",
+    "phần-tử-không-cursor-pointer",
+    "info",
+    "dòng-bảng-API(loose)",
+    "nth"
+  ],
+  "recorded": "Vòng 3 (fp v4): TourFP.record + chuột thật; hộp thoại quảng cáo giả chèn bằng JS trước khi ghi. Bỏ bước bộ lọc: icon phễu không mở được bộ lọc trong phiên này (bấm 2 lần, đều không có tác dụng) nên thư viện ghi đúng là info, đã xoá 2 bước đó",
+  "steps": [
+    {"kind":"click","fp":{"v":4,"tag":"button","label":"Đóng quảng cáo","attr":{"aria-label":"Đóng quảng cáo"},"comp":["app-promo-popup"],"anchor":"Quảng cáo thử nghiệm (giả lập)","anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"mobile","dialog":"app-promo-popup","step":""},"role":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"icon":"","hint":""},"after":{"path":"/home","layout":"mobile","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":4,"tag":"div","label":"Bảng giá","segs":["Bảng giá"],"comp":["app-footer-bar","app-root"],"anchor":"Trang chủ","anchorSkip":0,"pos":[1,2],"ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""},"after":{"path":"/tc-price","layout":"mobile","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":4,"tag":"div","label":"HOSE","segs":["HOSE"],"icon":"Global fill","comp":["app-tc-price-tab-floor","app-tc-price","app-root"],"anchor":"Cá nhân","anchorSkip":0,"pos":[1,2],"ctx":{"path":"/tc-price","layout":"mobile","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"hint":""},"after":{"path":"/tc-price","layout":"mobile","dialog":"tcbs-icon","step":""}},
+    {"kind":"click","fp":{"v":4,"tag":"div","label":"VN#","segs":["VN#"],"exact":"VN30","mixed":true,"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/tc-price","layout":"mobile","dialog":"tcbs-icon","step":""},"twins":2,"sig":"div<div<div<div<div<mat-dialog-container[dialog]","nth":0,"role":"","soft":[],"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","comp":[],"anchor":"","hint":""},"after":{"path":"/tc-price","layout":"mobile","dialog":"","step":""}},
+    {"kind":"info","fp":{"v":4,"tag":"span","label":"BSR","soft":["BSR"],"mixed":true,"dyn":1,"comp":["app-tc-price-table-floor","app-tc-price","app-root"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/tc-price","layout":"mobile","dialog":"","step":""},"twins":37,"sig":"span<div<div<div<div<cdk-virtual-scroll-viewport","nth":4,"loose":1,"role":"","segs":[],"exact":"","cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/tc-price","layout":"mobile","dialog":"","step":""}}
+  ],
+  "expect": [
+    "Lúc phát không có quảng cáo: bỏ qua bước này, bắt đầu ở bước 2",
+    "Tô sáng 'Bảng giá' ở thanh dưới đang hiện",
+    "Tô sáng nút chọn sàn (HOSE)",
+    "Tô sáng mục VN30; bấm được, bảng chuyển sang VN30 và tour sang bước sau",
+    "Tô sáng mã BSR (đi theo mã nếu đúng một dòng còn mang mã đó), nút Kết thúc"
+  ],
+  "observed": [
+    "OK: play() vào thẳng bước 2 (≈1.3 s gồm chờ)",
+    "OK: 100% (không còn nth — bản sao thanh dưới ngoài màn bị loại)",
+    "OK: 100%",
+    "OK: chữ «VN30»; bước giờ là click (vòng 2 là info và bị chặn) — bấm thật, bảng đổi sang VN30, tour tự sang bước 5",
+    "OK: chữ «BSR» (loose), 100%; 'Xong tour · 5 bước'"
+  ],
+  "notes": "Vòng 2: bước VN30 bị ghi info → kẹt; mã BSR mơ hồ. Vòng 3: chạy hết không cần can thiệp. Ghi chú: thị trường đóng cửa nên chưa kiểm được việc số liệu nhảy làm bước 'info' bị nâng nhầm thành 'click'."
+}

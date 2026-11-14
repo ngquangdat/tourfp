@@ -1,0 +1,34 @@
+{
+  "name": "Mobile: Menu drawer đang mở → Xem thêm (Tiền) → iPower → tiêu đề Nộp/Rút → nút Nộp tiền (chỉ locate)",
+  "layout": "mobile",
+  "start": "/home",
+  "covers": [
+    "drawer",
+    "accordion-xem-thêm",
+    "after-đổi-màn",
+    "nth",
+    "info",
+    "alt-click-info",
+    "nút-giao-dịch-chỉ-locate"
+  ],
+  "recorded": "TourFP.record + chuột thật, bắt đầu khi drawer Menu đã mở; bước 4 dựng bằng TourFP.capture (không bấm)",
+  "steps": [
+    {"kind":"info","fp":{"v":3,"tag":"span","label":"Xem thêm","segs":["Xem thêm"],"comp":["app-left-menu","app-root"],"anchor":"Ứng trước tiền bán","anchorSkip":0,"pos":[0,1],"ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"twins":3,"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""}},
+    {"kind":"info","fp":{"v":3,"tag":"div","label":"Tài khoản Nhân lãi mỗi ngày","segs":["Tài khoản Nhân lãi mỗi ngày"],"comp":["app-left-menu","app-root"],"anchorSkip":0,"pos":[1,2],"ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"twins":1,"sig":"div<div<div<div<div<div","nth":0,"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""}},
+    {"kind":"info","fp":{"v":3,"tag":"div","label":"Nộp/Rút","segs":["Nộp/Rút"],"comp":["app-i-power-trade","app-i-power","app-root"],"anchor":"Xem ngay","anchorSkip":0,"pos":[0,4],"ctx":{"path":"/ipower","layout":"mobile","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""}},
+    {"kind":"click","note":"Chỉ locate, KHÔNG bấm (nút chuyển tiền)","fp":{"v":3,"tag":"button","label":"Nộp tiền","segs":["Nộp tiền"],"comp":["app-i-power-trade","app-i-power","app-root"],"anchor":"Số tiền","anchorSkip":0,"pos":[0,1],"ctx":{"path":"/ipower","layout":"mobile","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","hint":""}}
+  ],
+  "expect": [
+    "Bước bấm 'Xem thêm' trong mục Tiền của drawer (đã mở rộng sẵn thì bỏ qua)",
+    "Bấm mục iPower (dòng thứ 1 của nhóm mô tả) → sang /ipower",
+    "Tô sáng tiêu đề 'Nộp/Rút', nút Tiếp",
+    "Tô sáng nút NỘP TIỀN (không bấm)"
+  ],
+  "observed": [
+    "Lúc ghi bước này là info dù có tác dụng (mở rộng danh sách) — span 'Xem thêm' không có cursor:pointer. Khi phát: app nhớ trạng thái đã mở rộng nên không còn 'Xem thêm' → locate trả skipped sau 1.8 s (đúng hành vi)",
+    "LỖI khi drawer đang đóng: locate trả ok, thứ 1/1, rect x=-631 (ngoài màn). Khi drawer mở: ok, đúng mục iPower (x≈164). Lúc ghi bước bị xếp info và không có 'after', nên play() sẽ không biết bước này đổi màn",
+    "OK (locate): 100%",
+    "OK (locate): 100%, không bấm"
+  ],
+  "notes": "Màn /ipower có ô số tiền, nút NỘP/RÚT TIỀN và công tắc 'Tính iPower vào sức mua' (cài đặt tài khoản) — không chạm vào. Quét màn /ipower: 25 phần tử, tự khớp 23/0/2/0, sau tải lại 23/0/2/0 (sau khi cuộn khung về đầu). | Vòng 3: chưa ghi lại được — màn iPower/Nộp tiền không mở (file JS trả 403); vẫn là fp v3. Đã kiểm 6.2: khi drawer đóng các mục drawer trả not-found (không tô bản ngoài màn)."
+}

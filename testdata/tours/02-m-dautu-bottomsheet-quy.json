@@ -1,0 +1,45 @@
+{
+  "name": "Mobile: Đầu tư (bottom sheet) → Quỹ → kỳ 1Y → dòng quỹ thứ 3 → chi tiết → 3Y → Đặt mua (chỉ locate)",
+  "layout": "mobile",
+  "start": "/home",
+  "covers": [
+    "bottom-sheet",
+    "click",
+    "after-đổi-màn",
+    "nth",
+    "nhãn-có-số(exact)",
+    "info",
+    "dòng-bảng-API",
+    "hộp-thoại",
+    "nút-giao-dịch-chỉ-locate"
+  ],
+  "recorded": "TourFP.record + chuột thật; bước 7 (Đặt mua) dựng bằng TourFP.capture, không bấm",
+  "steps": [
+    {"kind":"click","fp":{"v":3,"tag":"div","label":"Đầu tư","segs":["Đầu tư"],"key":{"data-walkthrough":"home-invest-button"},"icon":"g:rvpat","comp":["app-footer-bar","app-root"],"anchor":"Trang chủ","anchorSkip":0,"pos":[1,3],"hint":"app-footer-bar div[data-walkthrough=\"home-invest-button\"]","ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"attr":{}},"after":{"path":"/home","layout":"mobile","dialog":"","step":""}},
+    {"kind":"click","fp":{"v":3,"tag":"div","comp":["app-footer-bar","app-root"],"anchorSkip":0,"pos":[2,3],"ctx":{"path":"/home","layout":"mobile","dialog":"","step":""},"twins":9,"sig":"div<div<div<div<div<app-footer-bar","nth":7,"role":"","label":"","segs":[],"soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/new-fund","layout":"mobile","dialog":"","step":""}},
+    {"kind":"info","fp":{"v":3,"tag":"div","label":"#Y","segs":["#Y"],"exact":"1Y","mixed":true,"comp":["app-fund-supermart-price-table","app-fund-supermart-container","app-new-fund"],"anchorSkip":0,"pos":[4,7],"ctx":{"path":"/new-fund","layout":"mobile","dialog":"","step":""},"twins":1,"sig":"div<div<div<div<div<div","nth":0,"role":"","soft":[],"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""}},
+    {"kind":"info","fp":{"v":3,"tag":"span","label":"VCBFFIF","soft":["VCBFFIF"],"mixed":true,"dyn":1,"comp":["app-fund-supermart-price-table","app-fund-supermart-container","app-new-fund"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/new-fund","layout":"mobile","dialog":"","step":""},"role":"","segs":[],"exact":"","cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""}},
+    {"kind":"click","fp":{"v":3,"tag":"button","label":"#Y","segs":["#Y"],"exact":"3Y","mixed":true,"comp":["app-fund-chart","app-fund-detail"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/new-fund","layout":"mobile","dialog":"app-fund-detail","step":""},"twins":1,"sig":"button<div<div<div<div<mat-card-content","nth":1,"role":"","soft":[],"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""},"after":{"path":"/new-fund","layout":"mobile","dialog":"app-fund-detail","step":""}},
+    {"kind":"info","fp":{"v":3,"tag":"div","label":"Điểm nổi bật","segs":["Điểm nổi bật"],"icon":"Info","comp":["app-fund-info","app-fund-detail"],"anchor":"(YTD)","anchorSkip":1,"pos":[0,2],"ctx":{"path":"/new-fund","layout":"mobile","dialog":"app-fund-detail","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"hint":""}},
+    {"kind":"click","note":"Chỉ locate, KHÔNG bấm (nút giao dịch)","fp":{"v":3,"tag":"button","label":"Đặt mua","segs":["Đặt mua"],"comp":["app-fund-detail"],"anchorSkip":0,"pos":[0,1],"ctx":{"path":"/new-fund","layout":"mobile","dialog":"app-fund-detail","step":""},"role":"","soft":[],"exact":"","mixed":false,"dyn":0,"cover":1,"key":{},"attr":{},"icon":"","anchor":"","hint":""}}
+  ],
+  "expect": [
+    "Tô sáng nút Đầu tư giữa thanh dưới",
+    "Tô sáng mục Quỹ trong bottom sheet",
+    "Tô sáng tiêu đề kỳ 1Y; bấm được để đổi kỳ",
+    "Tô sáng mã quỹ ở dòng thứ 3; bấm được để mở chi tiết",
+    "Tô sáng nút 3Y trong hộp thoại chi tiết quỹ",
+    "Tô sáng tiêu đề 'Điểm nổi bật', có nút Tiếp",
+    "Tô sáng nút Đặt mua (không bấm)"
+  ],
+  "observed": [
+    "OK: khớp 100% qua hint data-walkthrough",
+    "SAI: tô sáng mục 'Phái sinh' (thứ 8/8) thay vì 'Quỹ'. Lúc ghi cú bấm rơi vào icon không chữ, nhóm có 10 phần tử (twins=9, nth=7); khi phát nhóm chỉ còn 8. Bấm Quỹ thật bị chặn",
+    "Đúng phần tử (chữ «1Y») nhưng bước bị ghi là info vì tiêu đề cột không có cursor:pointer; bấm vào bị chặn, Tiếp thì kỳ không đổi",
+    "MƠ HỒ (an toàn): mã quỹ là nhãn mềm; sau khoảng 8 s tooltip 'có nhiều phần tử giống VCBFFIF nên chưa xác định chắc được đích'; người dùng tự mở thì tour đi tiếp ngay",
+    "OK: chữ «3Y», 100%",
+    "OK: 100%, nút Tiếp hoạt động",
+    "OK: tô sáng đúng nút Đặt mua (100%); dừng bằng Kết thúc, không bấm"
+  ],
+  "notes": "Bước 3 và 4 lúc ghi có tác dụng thật (đổi kỳ, mở hộp thoại) nhưng commit() xếp thành info vì phần tử không có cursor:pointer (isClickable). | Vòng 3: chưa ghi lại được — trong phiên này một số file JS của app trả 403 nên trang Quỹ/Fundmart không mở; vẫn là fp v3. Kiểm riêng: fp icon 'Quỹ' (bước 2) sau khi tải lại trả đúng mục Quỹ (thứ 8/10 trong nhóm, vòng 2 trả nhầm Phái sinh) khi đủ trường mặc định."
+}

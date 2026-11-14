@@ -104,6 +104,36 @@
   .seg button.on { background: var(--surface-2); color: var(--text); font-weight: 500; }
   .run-opts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; font-size: 13px; color: var(--muted); }
   .run-opts input { width: 58px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); padding: 0 8px; font-variant-numeric: tabular-nums; }
+  .t-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .t-opts { display: flex; align-items: center; gap: 10px 22px; flex-wrap: wrap; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .t-sched { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .t-sched input[type=time] { height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); padding: 0 8px; color-scheme: dark; }
+  .t-sched input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+  .t-note { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(90,169,255,.1); color: #a8cdfa; font-size: 13px; }
+  .t-note.bad { background: rgba(229,72,77,.12); color: #ff9a9d; }
+  .t-list { margin-top: 14px; border-top: 1px solid var(--line); }
+  .t-item { border-bottom: 1px solid var(--line); }
+  .t-item:last-child { border-bottom: 0; }
+  .t-head { width: 100%; display: flex; align-items: baseline; gap: 10px; padding: 10px 0; text-align: left; }
+  .t-head .name { flex: none; max-width: 40%; }
+  .t-head .msg { flex: 1; min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .t-item.open .t-head .msg { white-space: normal; }
+  .badge { flex: none; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
+  .badge.pass { background: rgba(61,214,140,.16); color: var(--green); }
+  .badge.warn { background: rgba(240,169,59,.16); color: var(--amber); }
+  .badge.fail, .badge.error { background: rgba(229,72,77,.18); color: #ff8a8e; }
+  .badge.need_login, .badge.blocked { background: rgba(90,169,255,.16); color: var(--blue); }
+  .t-steps { list-style: none; margin: 0 0 10px; padding: 0; border-radius: 10px; background: var(--bg); font-size: 13px; }
+  .t-steps li { display: flex; align-items: baseline; gap: 10px; padding: 7px 12px; border-top: 1px solid var(--line); }
+  .t-steps li:first-child { border-top: 0; }
+  .t-steps .res { flex: none; width: 74px; font-weight: 600; font-size: 12px; }
+  .res.done, .res.found { color: var(--green); } .res.fail, .res.error { color: #ff8a8e; } .res.skipped { color: var(--amber); } .res.not-run { color: var(--faint); }
+  .t-steps .why { color: var(--faint); font-size: 12px; margin-left: auto; text-align: right; }
+  .t-hist { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; color: var(--faint); font-size: 12px; align-items: center; }
+  .t-hist i { font-style: normal; padding: 2px 8px; border-radius: 6px; background: var(--bg); font-variant-numeric: tabular-nums; }
+  .t-hist i.bad { color: #ff8a8e; } .t-hist i.ok { color: var(--green); }
+  .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); opacity: .5; }
+  .dot.pass { background: var(--green); opacity: 1; } .dot.warn { background: var(--amber); opacity: 1; } .dot.fail, .dot.error { background: var(--accent); opacity: 1; } .dot.need_login, .dot.blocked { background: var(--blue); opacity: 1; }
   .empty { text-align: center; padding: 56px 20px; color: var(--muted); }
   .empty b { display: block; color: var(--text); font-size: 17px; margin-bottom: 4px; }
 
@@ -142,16 +172,26 @@
     .choices { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  /* hai màn: danh sách tour và kiểm thử tự động */
+  body[data-view=tests] #viewTours, body[data-view=tests] #viewTours2, body:not([data-view=tests]) #viewTests { display: none; }
+  .tab-btn { display: inline-flex; align-items: center; gap: 7px; }
+  .tab-btn .tdot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .tab-btn .tdot.pass { background: var(--green); } .tab-btn .tdot.warn { background: var(--amber); }
+  .tab-btn .tdot.fail { background: var(--accent); } .tab-btn .tdot.run { background: var(--blue); animation: tpulse 1s infinite alternate; }
+  @keyframes tpulse { to { opacity: .3; } }
+  @media (max-width: 560px) { .brand small { display: none; } .bar-in { gap: 8px; padding: 0 12px; } .bar .btn { padding: 0 11px; } .tab-btn .long { display: none; } }
 </style>
 </head>
 <body>
 <header class="bar"><div class="bar-in">
   <div class="brand"><i>T</i>Tour <small id="target"></small></div>
   <div class="grow"></div>
+  <button class="btn gray tab-btn" id="testsTab" type="button"><span class="tdot" id="tDot"></span><span id="testsTabLabel">Kiểm thử<span class="long"> tự động</span></span></button>
   <button class="btn primary" id="add">Thêm tour</button>
 </div></header>
 
 <main>
+<div id="viewTours">
   <h1>Tour hướng dẫn</h1>
   <p class="sub" id="count">Đang tải…</p>
   <form class="ask" id="askForm" autocomplete="off">
@@ -162,8 +202,29 @@
     </div>
     <div id="answer"></div>
   </form>
+</div>
+<div id="viewTests">
+  <h1>Kiểm thử tự động</h1>
+  <p class="sub">Chạy lại mọi tour bằng Chrome để biết tour nào còn dẫn đúng, tour nào đã hỏng.</p>
+  <section class="ask" id="tests">
+    <div class="t-opts">
+      <label class="t-sched"><input type="checkbox" id="tOn"> Chạy hằng ngày lúc <input type="time" id="tTime" value="08:30"></label>
+      <label class="t-sched" title="Mở cửa sổ Chrome để xem bộ chạy thao tác từng bước. Tắt để chạy ẩn."><input type="checkbox" id="tShow"> Hiện cửa sổ Chrome khi chạy</label>
+    </div>
+    <div class="ask-head"><b>Lần chạy</b><span id="tStatus">Đang tải…</span></div>
+    <div class="t-row">
+      <button class="btn primary" id="tRun" type="button">Chạy kiểm thử</button>
+      <button class="btn gray" id="tLogin" type="button">Mở trình duyệt để đăng nhập</button>
+    </div>
+    <div id="tNote"></div>
+    <div id="tResults"></div>
+    <div class="t-hist" id="tHist"></div>
+  </section>
+</div>
+<div id="viewTours2">
   <input class="search" id="q" type="search" placeholder="Tìm theo tên hoặc màn bắt đầu" autocomplete="off">
   <div id="list"></div>
+</div>
 </main>
 
 <div class="scrim" id="addSheet"><form class="sheet" id="addForm" autocomplete="off">
@@ -253,15 +314,17 @@ function render() {
     const meta = el('div', 'meta');
     meta.append(`${t.step_count} bước · `, el('code', '', t.start_path), ` · ${t.layout === 'mobile' ? 'Mobile' : t.layout === 'desktop' ? 'Desktop' : 'Không rõ bố cục'} · ${when(t.created_at)}`);
     text.append(el('div', 'name', t.name), meta); main.append(text);
+    const dot = el('span', 'dot'); dot.dataset.tour = t.id; head.append(dot);
     main.onclick = () => { openId = openId === t.id ? null : t.id; render(); };
     const acts = el('div', 'acts');
     const run = el('button', 'btn tint', 'Chạy thử'); run.onclick = () => openRun(t);
     const del = el('button', 'btn plain danger', 'Xoá'); del.onclick = () => { pending = t; rich($('delName'), `«${t.name}» với ${t.step_count} bước sẽ bị xoá khỏi máy chủ. Không hoàn tác được.`); show('delSheet'); };
-    acts.append(run, del); head.append(main, acts); row.append(head);
+    acts.append(run, del); head.prepend(main); head.append(acts); row.append(head);
     if (t.id === openId) { const d = el('div', 'detail'); d.append(el('div', 'meta', 'Đang tải các bước…')); row.append(d); fill(d, t); }
     list.append(row);
   }
   box.append(list);
+  paintDots(); // danh sách vừa được vẽ lại (mở/đóng chi tiết, tìm kiếm): tô lại màu kết quả kiểm thử
 }
 
 async function fill(d, t) {
@@ -392,14 +455,97 @@ $('delGo').onclick = async () => {
   catch (e) { hide(); toast(e.message); }
 };
 
+// ---- kiểm thử tự động
+let tests = null, openTest = null;
+const T_LABEL = { pass: 'Đạt', warn: 'Lưu ý', fail: 'Lỗi', error: 'Lỗi chạy', need_login: 'Cần đăng nhập', blocked: 'Bị chặn' };
+const R_LABEL = { done: 'Đã làm', found: 'Tìm thấy', skipped: 'Bỏ qua', fail: 'Lỗi', error: 'Lỗi', 'not-run': 'Chưa chạy' };
+function paintDots() {
+  const by = {}; if (tests && tests.last) for (const r of tests.last.results) by[r.tour_id] = r;
+  document.querySelectorAll('.dot[data-tour]').forEach(d => { const r = by[d.dataset.tour]; d.className = 'dot' + (r ? ' ' + r.status : ''); d.title = r ? `Kiểm thử gần nhất: ${T_LABEL[r.status]}. ${r.message}` : 'Chưa kiểm thử'; });
+}
+function renderTests() {
+  const t = tests, busy = t.running || t.login_open;
+  $('tRun').disabled = busy || !t.available; $('tLogin').disabled = busy || !t.available;
+  if (document.activeElement !== $('tTime')) $('tTime').value = t.schedule.time;
+  $('tOn').checked = t.schedule.enabled;
+  $('tShow').checked = t.show_browser !== false;
+  const c = t.last && t.last.counts;
+  $('tStatus').textContent = !t.available ? 'Máy chủ chưa cài Playwright (pip install playwright)'
+    : t.running ? `Đang chạy… ${t.done}/${t.total}${t.current ? ' · ' + t.current : ''}`
+    : t.login_open ? 'Cửa sổ đăng nhập đang mở'
+    : t.last ? `Lần gần nhất ${when(t.last.started_at)} · ${t.last.trigger === 'schedule' ? 'theo lịch' : 'chạy tay'} · ${c.pass} đạt · ${c.warn} lưu ý · ${c.fail + c.error} lỗi` + (c.blocked ? ` · ${c.blocked} bị chặn` : '') + (c.need_login ? ` · ${c.need_login} cần đăng nhập` : '')
+    : 'Chưa chạy lần nào';
+  const note = $('tNote'); note.replaceChildren();
+  const say = (text, bad) => note.append(el('div', 't-note' + (bad ? ' bad' : ''), text));
+  if (t.login_open) say('Hãy đăng nhập trong cửa sổ Chrome vừa mở, rồi đóng cửa sổ đó. Phiên đăng nhập được giữ lại cho các lần kiểm thử sau.');
+  else if (t.error) say('Lần chạy gần nhất không thực hiện được: ' + t.error, true);
+  else if (t.last && t.last.status === 'blocked') say('Trang đích hiện màn xác minh chống bot nên trình duyệt tự động không vào được, và chưa tour nào được kiểm thử. Cần một địa chỉ không chặn trình duyệt tự động (môi trường thử, hoặc được đưa vào danh sách cho phép).', true);
+  else if (t.last && t.last.status === 'need_login') say('Trình duyệt kiểm thử chưa đăng nhập hoặc phiên đã hết. Bấm "Mở trình duyệt để đăng nhập", đăng nhập, đóng cửa sổ, rồi chạy lại.', true);
+  const box = $('tResults'); box.replaceChildren();
+  if (t.last && t.last.results.length) {
+    const list = el('div', 't-list');
+    for (const r of t.last.results) {
+      const item = el('div', 't-item' + (openTest === r.tour_id ? ' open' : ''));
+      const head = el('button', 't-head'); head.type = 'button';
+      head.append(el('span', 'badge ' + r.status, T_LABEL[r.status] || r.status), el('span', 'name', r.name), el('span', 'msg', r.message));
+      head.onclick = () => { openTest = openTest === r.tour_id ? null : r.tour_id; renderTests(); };
+      item.append(head);
+      if (openTest === r.tour_id && r.steps.length) {
+        const ol = el('ol', 't-steps');
+        for (const st of r.steps) {
+          const li = el('li');
+          const detail = [st.score != null ? `khớp ${Math.round(st.score * 100)}%` : '', st.via || '', st.waited != null ? `chờ ${st.waited} ms` : '', st.note || ''].filter(Boolean).join(' · ');
+          li.append(el('span', 'num', st.n), el('span', 'res ' + st.result, R_LABEL[st.result] || st.result), el('span', 'kind ' + st.kind, KIND[st.kind] || st.kind), el('span', 'target', st.name), el('span', 'why', detail));
+          ol.append(li);
+        }
+        item.append(ol);
+      }
+      list.append(item);
+    }
+    box.append(list);
+  }
+  const hist = $('tHist'); hist.replaceChildren();
+  if (t.history.length > 1) {
+    hist.append('Các lần trước:');
+    for (const h of t.history.slice(1, 9)) { const bad = h.counts.fail + h.counts.error + h.counts.need_login + (h.counts.blocked || 0); const i = el('i', bad ? 'bad' : 'ok', `${when(h.started_at).slice(0, 5)} · ${h.counts.pass + h.counts.warn}✓${bad ? ' ' + bad + '✕' : ''}`); i.title = when(h.started_at) + (h.status === 'need_login' ? ' · cần đăng nhập' : h.status === 'blocked' ? ' · bị chặn' : ''); hist.append(i); }
+  }
+  paintDots();
+  const dot = $('tDot'), bad = c ? c.fail + c.error + (c.need_login || 0) + (c.blocked || 0) : 0;
+  dot.className = 'tdot' + (t.running ? ' run' : !c ? '' : bad ? ' fail' : c.warn ? ' warn' : ' pass');
+  $('testsTab').title = $('tStatus').textContent;
+}
+async function loadTests() {
+  clearTimeout(loadTests.t);
+  try { tests = await api('/api/tests'); renderTests(); } catch (_) { /* thử lại ở nhịp sau */ }
+  loadTests.t = setTimeout(loadTests, tests && (tests.running || tests.login_open) ? 1500 : 30000);
+}
+$('tRun').onclick = async () => { try { await api('/api/tests/run', { method: 'POST' }); toast('Đã bắt đầu kiểm thử'); } catch (e) { toast(e.message); } loadTests(); };
+$('tLogin').onclick = async () => { try { await api('/api/tests/login', { method: 'POST' }); } catch (e) { toast(e.message); } loadTests(); };
+const saveSched = async () => { try { await api('/api/tests/schedule', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: $('tOn').checked, time: $('tTime').value || '08:30' }) }); toast($('tOn').checked ? `Sẽ chạy hằng ngày lúc ${$('tTime').value}` : 'Đã tắt lịch chạy hằng ngày'); } catch (e) { toast(e.message); } loadTests(); };
+$('tOn').onchange = saveSched; $('tTime').onchange = saveSched;
+$('tShow').onchange = async () => { try { await api('/api/tests/show-browser', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show: $('tShow').checked }) }); toast($('tShow').checked ? 'Lần chạy sau sẽ mở cửa sổ Chrome' : 'Lần chạy sau sẽ chạy ẩn'); } catch (e) { toast(e.message); } loadTests(); };
+
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = hide);
 document.querySelectorAll('.scrim').forEach(s => s.addEventListener('mousedown', e => { if (e.target === s) hide(); }));
 addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
 $('q').oninput = render;
 
-async function load() { try { tours = await api('/api/tours'); } catch (e) { tours = []; toast(e.message); } render(); }
+async function load() { try { tours = await api('/api/tours'); } catch (e) { tours = []; toast(e.message); } render(); paintDots(); }
 api('/api/config').then(c => { $('target').textContent = new URL(c.target).host; $('aiInfo').textContent = c.ai === 'off' ? 'AI đang tắt, tìm bằng từ khoá' : `AI: ${c.ai} · ${c.ai_model}`; if (c.ai_error) $('aiInfo').textContent = 'Cấu hình AI lỗi: ' + c.ai_error; }).catch(() => {});
+// chuyển giữa hai màn; nhớ trên địa chỉ (#tests) để tải lại trang vẫn ở đúng màn
+function setView() {
+  const tests = location.hash === '#tests';
+  document.body.dataset.view = tests ? 'tests' : 'tours';
+  $('testsTabLabel').innerHTML = tests ? 'Danh sách<span class="long"> tour</span>' : 'Kiểm thử<span class="long"> tự động</span>';
+  $('tDot').style.display = tests ? 'none' : '';
+  document.title = tests ? 'Kiểm thử tự động · Tour' : document.title.replace(/^Kiểm thử tự động · /, '');
+  scrollTo(0, 0);
+}
+$('testsTab').onclick = () => { if (location.hash === '#tests') history.pushState('', '', location.pathname + location.search); else location.hash = 'tests'; setView(); };
+addEventListener('hashchange', setView); addEventListener('popstate', setView);
+setView();
 load();
+loadTests();
 </script>
 </body>
 </html>
