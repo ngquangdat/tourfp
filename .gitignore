@@ -1,0 +1,9 @@
+# dữ liệu tour lưu trên máy (SQLite)
+server/data/
+# môi trường Python
+server/.venv/
+__pycache__/
+*.pyc
+# cấu hình chạy thử của công cụ
+.claude/
+.DS_Store

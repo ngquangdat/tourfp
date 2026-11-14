@@ -21,6 +21,7 @@ Dán nội dung `tourfp.js` vào console của trang, hoặc nạp bằng thẻ 
   - Bước đã được làm sẵn (ví dụ menu đã mở rộng) thì tự bỏ qua.
   - Đang ở màn cuối và bước cuối đã làm xong thì báo, cho chọn phát lại từ đầu.
 - **Xoá** — xoá danh sách bước.
+- **Lưu** — gửi tour lên máy chủ quản trị (xem bên dưới). Nếu trang không cho gọi ra ngoài, JSON của tour được chép vào clipboard.
 
 Trong console:
 
@@ -31,9 +32,38 @@ TourFP.capture(el)            // dấu vân tay của một phần tử
 TourFP.find(fp)               // tìm phần tử theo dấu vân tay: { status, el, score, ... }
 ```
 
+## Trang quản trị (`server/`)
+
+Một máy chủ FastAPI nhỏ để lưu danh sách tour đã ghi, thêm mới, xoá và chạy thử. Dữ liệu nằm trong SQLite tại `server/data/tours.db`.
+
+```bash
+pip install -r server/requirements.txt
+```
+
+```bash
+uvicorn main:app --app-dir server --host 127.0.0.1 --port 8000
+```
+
+Mở <http://localhost:8000>:
+
+- **Thêm tour** — đặt tên rồi dán JSON lấy bằng `copy(TourFP.export())`, hoặc chọn file `.json`.
+- **Chạy thử** — chép một đoạn mã gồm cả thư viện lẫn tour; mở màn bắt đầu của tour, dán vào console là tour phát ngay.
+  Khi chạy thử, thanh ghi tour không hiện (chế độ chỉ phát); gọi `TourFP.showPanel()` nếu cần hiện lại.
+- **Xoá**, **Tải JSON**, và xem danh sách bước của từng tour.
+
+Cấu hình bằng biến môi trường: `TOURFP_TARGET` là trang web tour chạy trên đó (mặc định `https://tcinvest.tcbs.com.vn`),
+`TOURFP_DATA` là thư mục chứa file SQLite.
+
+Khi thư viện được cài sẵn trong app và app cho phép gọi tới máy chủ này, nút **Lưu** gửi thẳng tour lên máy chủ, và mở
+`<trang>?tourfp=<mã tour>` sẽ tải tour đó về rồi phát. Địa chỉ máy chủ đặt bằng `window.TOURFP_SERVER` trước khi nạp thư viện
+(mặc định `http://localhost:8000`). Trang TCInvest hiện chặn mọi kết nối ra ngoài danh sách cho phép của nó, nên với trang đó
+phải dùng cách dán JSON và dán mã chạy thử.
+
+Máy chủ không có đăng nhập; chỉ nên chạy trên `127.0.0.1`.
+
 ## Giới hạn hiện tại
 
-- Tour chỉ nằm trong bộ nhớ của tab; tải lại trang là mất. Chưa có nơi lưu bền.
+- Trên trang, tour chỉ nằm trong bộ nhớ của tab; tải lại trang là mất. Muốn giữ thì lưu lên trang quản trị.
 - Chữ lấy từ API (tên người, tên kế hoạch…) chỉ được loại khỏi dấu vân tay nếu thư viện được nạp **trước** khi app gọi API,
   tức là phải đặt trong `<head>`. Chữ số luôn bị loại.
 - Lời hướng dẫn từng bước đang là câu mặc định; chưa có AI viết lời hay phân xử khi có nhiều ứng viên ngang điểm.

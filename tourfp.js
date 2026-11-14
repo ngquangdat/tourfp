@@ -68,7 +68,7 @@
   // ---------- tín hiệu ----------
   // tách chữ của phần tử thành các mẩu, bỏ chữ số
   function pieces(e) {
-    const out = [];
+    const out = [], num = [];
     let digits = false, nodes = 0;
     const w = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
     // chỉ cần vài mẩu đầu: với khối lớn (thẻ, bảng) đó là tiêu đề
@@ -77,9 +77,9 @@
       if (!v.trim() || (n.parentElement && n.parentElement.closest('svg,script,style'))) continue;
       nodes++;
       if (/\d/.test(v)) digits = true;
-      for (const seg of v.split(/\d[\d.,%\/:-]*/)) { const s = norm(seg); if (s.length >= 2 && hasLetters(s)) out.push(s.slice(0, 60)); }
+      for (const seg of v.split(/\d[\d.,%\/:-]*/)) { const s = norm(seg); if (s.length >= 2 && hasLetters(s)) { out.push(s.slice(0, 60)); num.push(/\d/.test(v)); } }
     }
-    return { all: out, digits };
+    return { all: out, digits, num };
   }
   const lettersLen = s => s.replace(/[\d\s.,%#\/:-]/g, '').length || 1;
 
@@ -118,17 +118,19 @@
   // chữ ngắn gần nhất đứng trước phần tử (nhãn ô nhập, tiêu đề khối); bỏ qua nếu là giá trị API
   // các mẩu chữ đứng trước phần tử, theo thứ tự gần đến xa (nhãn ô nhập, tiêu đề khối). Mỗi khối chỉ lấy hai mẩu đầu
   // (tiêu đề như "Số điện thoại"); phần sau thường là dữ liệu của người dùng.
-  function anchorCands(e) {
-    const out = [];
+  // stopAt: chỉ lấy chữ nằm bên trong khối này (không leo ra ngoài). out.data[i] = mẩu thứ i lấy từ dòng chữ có chữ số.
+  function anchorCands(e, stopAt) {
+    const out = []; out.data = [];
     const ff = e.closest('mat-form-field');
     const ml = ff && ff.querySelector('mat-label,label');
-    if (ml) { const v = stripNum(ml.textContent).slice(0, 40); if (v && hasLetters(v)) out.push(v); }
+    if (ml) { const v = stripNum(ml.textContent).slice(0, 40); if (v && hasLetters(v)) { out.push(v); out.data.push(false); } }
     let cur = e;
-    for (let lvl = 0; lvl < 4 && cur && cur !== document.body && out.length < 8; lvl++, cur = cur.parentElement) {
+    for (let lvl = 0; lvl < 4 && cur && cur !== document.body && cur !== stopAt && out.length < 8; lvl++, cur = cur.parentElement) {
       for (let sib = cur.previousElementSibling, k = 0; sib && k < 3; sib = sib.previousElementSibling, k++) {
         const t = sib.textContent;
         if (!t || t.length > 400) continue;
-        for (const v of pieces(sib).all.slice(0, 2)) if (v.length <= 40) out.push(v);
+        const p = pieces(sib);
+        p.all.slice(0, 2).forEach((v, i) => { if (v.length <= 40) { out.push(v); out.data.push(p.num[i]); } });
       }
     }
     return out;
@@ -199,6 +201,25 @@
     return e;
   }
 
+  // "hình dáng" vị trí của phần tử: chuỗi thẻ từ nó lên 5 cấp cha. Các dòng của cùng một bảng có chung chuỗi này.
+  const sigOf = e => {
+    const out = [];
+    for (let p = e, i = 0; p && p !== document.body && i < 6; p = p.parentElement, i++) out.push(tagOf(p) + (p.getAttribute('role') ? '[' + p.getAttribute('role') + ']' : ''));
+    return out.join('<');
+  };
+  // các phần tử khác trên màn có chữ/icon/thuộc tính y hệt đích (không tính phần tử bọc ngoài hay nằm trong đích)
+  function twinsOf(fp, el) {
+    const out = [];
+    for (const r of roots()) for (const e of r.querySelectorAll(fp.tag)) {
+      if (e === el || e.contains(el) || el.contains(e) || isUi(e) || !visible(e) || iconOf(e) !== fp.icon) continue;
+      if (fp.label && labelScore(fp, e) < 0.9) continue;
+      let same = true;
+      for (const k in fp.key) if (e.getAttribute(k) !== fp.key[k]) same = false;
+      if (same) out.push(e);
+    }
+    return out;
+  }
+
   function capture(el) {
     const fp = { v: 2, tag: tagOf(el), role: el.getAttribute('role') || '', label: '', segs: [], mixed: false, dyn: 0, cover: 1, key: {}, attr: {}, icon: iconOf(el), comp: compChain(el), anchor: '', anchorSkip: 0, pos: posOf(el), hint: '', ctx: context() };
     // tiêu đề khối đứng trước: lấy mẩu đầu tiên không phải giá trị API, và nhớ vị trí của nó để lúc khớp đọc đúng mẩu đó
@@ -223,12 +244,28 @@
     // số phần tử khác trên màn có chữ/icon/thuộc tính y hệt (ví dụ ba nút bút chì): nếu có thì khối đứng trước là bắt buộc
     fp.twins = 0;
     if (hasStrong(fp)) {
-      for (const r of roots()) for (const e of r.querySelectorAll(fp.tag)) {
-        if (e === el || e.contains(el) || el.contains(e) || isUi(e) || !visible(e) || iconOf(e) !== fp.icon) continue;
-        if (fp.label && labelScore(fp, e) < 0.9) continue;
-        let same = true;
-        for (const k in fp.key) if (e.getAttribute(k) !== fp.key[k]) same = false;
-        if (same) fp.twins++;
+      const group = twinsOf(fp, el);
+      fp.twins = group.length;
+      if (group.length) {
+        // Tiêu đề khối đứng trước chỉ phân biệt được các bản sao khi cả ba điều đúng:
+        //  - nó nằm bên trong chính "đơn vị lặp" chứa đích (một dòng của bảng, một mục của form), không phải chữ của dòng bên cạnh;
+        //  - nó là nhãn, không phải dữ liệu (mã, số liệu);
+        //  - không bản sao nào khác có tiêu đề y hệt.
+        // Nếu không, đây là danh sách sinh từ dữ liệu: nhận diện bằng thứ tự, "nút thứ mấy trong danh sách".
+        const sig = sigOf(el), peer = group.find(e => sigOf(e) === sig);
+        let byAnchor = !!fp.anchor;
+        if (byAnchor && peer) {
+          let unit = el;
+          while (unit.parentElement && !unit.parentElement.contains(peer)) unit = unit.parentElement;
+          const inner = anchorCands(el, unit), j = inner.indexOf(fp.anchor);
+          byAnchor = j >= 0 && !inner.data[j];
+        }
+        if (byAnchor) byAnchor = !group.some(e => sim(fp.anchor, anchorCands(e)[fp.anchorSkip] || ''));
+        if (!byAnchor) {
+          fp.sig = sig;
+          fp.nth = group.filter(e => sigOf(e) === sig && (e.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)).length;
+          fp.anchor = ''; fp.anchorSkip = 0;
+        }
       }
     }
     const k0 = Object.keys(fp.key)[0];
@@ -349,6 +386,14 @@
     // giữa một phần tử và khối cha của chính nó thì chọn theo điểm gốc, không để hệ số "bị che" quyết định
     if (best) for (const c of ranked) if (c !== best && c.score > best.score && (c.el.contains(best.el) || best.el.contains(c.el))) best = c;
     const second = best && ranked.find((c, i) => i > 0 && !best.el.contains(c.el) && !c.el.contains(best.el));
+    // đích được ghi theo thứ tự trong danh sách: lấy các ứng viên cùng "hình dáng", xếp theo thứ tự trên trang, chọn cái thứ nth
+    if (fp.nth != null && fp.sig) {
+      const group = ranked.filter(c => c.score >= THRESHOLD && sigOf(c.el) === fp.sig).map(c => c.el)
+        .sort((x, y) => (x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+      const pick = group[fp.nth];
+      if (!pick) return done({ status: 'not-found', score: best ? best.score : 0, scanned, need: fp.nth + 1, have: group.length });
+      return done({ status: 'ok', el: pick, score: score(fp, pick), margin: 1, via: 'thứ ' + (fp.nth + 1) + '/' + group.length, scanned });
+    }
     if (!best || best.score < THRESHOLD) return done({ status: 'not-found', score: best ? best.score : 0, scanned });
     const margin = best.adj - (second ? second.adj : 0);
     return done({ status: margin >= MARGIN ? 'ok' : 'ambiguous', el: best.el, score: best.score, margin, via: 'scan', scanned, top: ranked.slice(0, 3) });
@@ -389,10 +434,10 @@
   const NARROW = innerWidth < 480;
   const panel = mk('div', `position:fixed;left:${NARROW ? 8 : 12}px;max-width:calc(100vw - 16px);box-sizing:border-box;bottom:${innerWidth < 768 ? 80 : 12}px;z-index:${Z + 2};background:#16181d;color:#fff;border:1px solid #3a3f4b;border-radius:10px;padding:8px 10px;display:flex;gap:8px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.45);${FONT}`);
   const btnCss = `all:unset;cursor:pointer;white-space:nowrap;padding:5px ${NARROW ? 8 : 10}px;border-radius:6px;background:#2a2f3a;color:#fff;${FONT}`;
-  const bRec = mk('button', btnCss, '● Ghi'), bPlay = mk('button', btnCss, '▶ Phát'), bClr = mk('button', btnCss, 'Xoá');
+  const bRec = mk('button', btnCss, '● Ghi'), bPlay = mk('button', btnCss, '▶ Phát'), bClr = mk('button', btnCss, 'Xoá'), bSave = mk('button', btnCss, 'Lưu');
   const info = mk('span', `opacity:.8;min-width:${NARROW ? 0 : 170}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap`, 'TourFP · 0 bước');
   const grip = mk('span', 'opacity:.5;font-size:16px;line-height:1;padding:0 2px', '⠿');
-  panel.append(grip, bRec, bPlay, bClr, info);
+  panel.append(grip, bRec, bPlay, bClr, bSave, info);
   // kéo thanh điều khiển đi chỗ khác: nắm vào bất kỳ đâu trừ các nút; vị trí được nhớ trong phiên
   const POS = 'tourfp:pos';
   const moveTo = (x, y) => {
@@ -422,15 +467,26 @@
   const tipMeta = mk('div', 'margin-bottom:8px;font-size:11px;opacity:.55');
   const bNext = mk('button', btnCss + 'pointer-events:auto;background:#e5484d;', 'Tiếp'), bStop = mk('button', btnCss + 'pointer-events:auto;background:#ddd;color:#111;margin-left:6px', 'Dừng');
   tip.append(tipText, tipMeta, bNext, bStop);
+  // chế độ chỉ phát (chạy thử từ trang quản trị, hoặc mở trang với ?tourfp=<mã>): không hiện thanh ghi tour
+  const PLAYER = !!window.TOURFP_PLAYER || new URLSearchParams(location.search).has('tourfp');
+  if (PLAYER) panel.style.display = 'none';
   document.documentElement.append(box, tip, panel);
   try { const p = JSON.parse(sessionStorage.getItem(POS) || 'null'); if (p) moveTo(p[0], p[1]); } catch (_) { /* vị trí cũ không đọc được */ }
 
   const nameOf = fp => (fp.segs && fp.segs[0]) || fp.label || fp.icon || fp.key.name || fp.key.formcontrolname || fp.attr.placeholder || fp.tag;
+  // hiển thị chữ lên giao diện; phần đặt trong «…» (tên đích, tên tour) thành chữ in đậm, bỏ dấu ngoặc
+  const rich = (node, text) => {
+    node.replaceChildren();
+    String(text).split(/«([^»]*)»/).forEach((part, i) => {
+      if (!part) return;
+      if (i % 2) { const b = document.createElement('b'); b.style.fontWeight = '700'; b.textContent = part; node.append(b); } else node.append(part);
+    });
+  };
   const setBtns = (next, stop) => {
     bNext.textContent = next || ''; bNext.style.display = next ? '' : 'none';
     bStop.textContent = stop || ''; bStop.style.display = stop ? '' : 'none';
   };
-  const setInfo = t => { info.textContent = t || (recording ? `Đang ghi · ${steps.length} bước · Alt+bấm = chỉ tô sáng` : `TourFP · ${steps.length} bước`); };
+  const setInfo = t => { rich(info, t || (recording ? `Đang ghi · ${steps.length} bước · Alt+bấm = chỉ tô sáng` : `TourFP · ${steps.length} bước`)); };
   function place() {
     if (!target || !target.isConnected) {
       box.style.display = 'none';
@@ -535,6 +591,7 @@
     stopPlay(); recording = true; bRec.textContent = '■ Dừng ghi'; bRec.style.background = '#e5484d';
     box.style.borderColor = '#ffb020'; box.style.boxShadow = 'none';
     popups = []; hoverEl = null; popMo.observe(document.body, { childList: true, subtree: true });
+    probe();
     setInfo(); cancelAnimationFrame(raf); loop();
   }
   function stop() { recording = false; pending = null; popMo.disconnect(); bRec.textContent = '● Ghi'; bRec.style.background = '#2a2f3a'; target = null; box.style.display = 'none'; cancelAnimationFrame(raf); setInfo(); }
@@ -580,7 +637,7 @@
     box.style.borderColor = '#e5484d'; box.style.boxShadow = '0 0 0 9999px rgba(0,0,0,.5)';
     tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
     // nút Tiếp chỉ có ở bước nhập và bước chỉ tô sáng; bước cần bấm hoặc rê chuột thì người dùng phải tự làm
-    tipText.textContent = `${head}: đang chờ màn hình…`; tipMeta.textContent = ''; setBtns(null, 'Dừng');
+    rich(tipText, `${head}: đang chờ màn hình…`); tipMeta.textContent = ''; setBtns(null, 'Dừng');
     setInfo(`${head}: đang tìm`);
     cancelAnimationFrame(raf); loop();
     const after = (from, n) => steps.slice(from, from + n).map((x, k) => ({ fp: x.fp, idx: from + k }));
@@ -589,13 +646,13 @@
     if (r.skipTo != null) return show(r.skipTo);
     setInfo(`${head}: ${r.status}`);
     if (!r.el) {
-      tipText.textContent = `${head}: không tìm thấy «${name}»` + (r.expected ? `\nCần ở màn: ${r.expected.path} ${r.expected.dialog} ${r.expected.step}` : '');
+      rich(tipText, `${head}: không tìm thấy «${name}»` + (r.expected ? `\nCần ở màn: ${r.expected.path} ${r.expected.dialog} ${r.expected.step}` : ''));
       tipMeta.textContent = r.status;
       return;
     }
     target = r.el;
     r.el.scrollIntoView({ block: 'center', inline: 'nearest' });
-    tipText.textContent = `${head}: ` + (st.note || (st.kind === 'click' ? `Bấm vào «${name}» để tiếp tục` : st.kind === 'hover' ? `Rê chuột vào «${name}»` : st.kind === 'input' ? `Nhập vào ô «${name}», xong bấm Tiếp` : name));
+    rich(tipText, `${head}: ` + (st.note || (st.kind === 'click' ? `Bấm vào «${name}» để tiếp tục` : st.kind === 'hover' ? `Rê chuột vào «${name}»` : st.kind === 'input' ? `Nhập vào ô «${name}», xong bấm Tiếp` : name)));
     tipMeta.textContent = `khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms` + (r.status === 'ambiguous' ? ' · ⚠ mơ hồ' : '');
     // bước cuối: nút thành "Kết thúc". Bước có nút Tiếp thì chỉ còn một nút Kết thúc; bước phải tự bấm thì nút Dừng đổi tên.
     const lastStep = i === steps.length - 1, manual = st.kind === 'input' || st.kind === 'info';
@@ -627,7 +684,7 @@
     const path = steps[0].fp.ctx.path, my = ++token, t0 = performance.now(), before = pageSig(), samePath = location.pathname === path;
     playing = 0; target = null; box.style.display = 'none';
     tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px'; bNext.style.display = 'none';
-    tipText.textContent = 'Màn này không có trong tour — đang về màn bắt đầu…'; tipMeta.textContent = path; setBtns(null, 'Dừng');
+    rich(tipText, 'Màn này không có trong tour — đang về màn bắt đầu…'); tipMeta.textContent = path; setBtns(null, 'Dừng');
     try { sessionStorage.setItem(RESUME, JSON.stringify(steps)); } catch (_) { /* không lưu được thì thôi */ }
     // đang có hộp thoại mà bước 1 không nằm trong hộp thoại: thử đóng bằng phím Esc trước
     if (topDialog() && !steps[0].fp.ctx.dialog) document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
@@ -645,7 +702,7 @@
   function endNotice() {
     token++; playing = -1; target = null; atEnd = true; box.style.display = 'none'; cancelAnimationFrame(raf);
     tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
-    tipText.textContent = 'Bạn đang ở màn cuối của tour, bước cuối đã được thực hiện.'; tipMeta.textContent = '';
+    rich(tipText, 'Bạn đang ở màn cuối của tour, bước cuối đã được thực hiện.'); tipMeta.textContent = '';
     setBtns('Phát lại từ đầu', 'Dừng');
     setInfo('Đang ở màn cuối của tour');
   }
@@ -669,6 +726,56 @@
     if (first >= 0) show(first); else goStart();
   }
 
+  // ---------- máy chủ lưu tour (thư mục server/) ----------
+  const SERVER = String(window.TOURFP_SERVER || 'http://localhost:8000').replace(/\/$/, '');
+  // Chép vào clipboard NGAY trong cú bấm. Nhiều trang (kể cả TCInvest) từ chối quyền ghi clipboard kiểu mới,
+  // nên chỉ còn cách cũ, và cách cũ chỉ chạy được khi đang ở trong một cú bấm của người dùng.
+  function copyNow(text) {
+    const ta = mk('textarea', 'position:fixed;left:0;top:0;opacity:0');
+    ta.value = text; document.documentElement.append(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) { /* không chép được */ }
+    ta.remove();
+    return ok;
+  }
+  // Máy chủ có gọi được không: null = chưa biết. Trang chặn kết nối ra ngoài thì kết quả không đổi, nên chỉ cần dò một lần.
+  let serverOk = null;
+  const setSaveMode = () => { bSave.textContent = serverOk === false ? 'Chép JSON' : 'Lưu'; };
+  async function probe() {
+    if (serverOk !== null) return;
+    try { serverOk = (await fetch(SERVER + '/api/config')).ok; } catch (_) { serverOk = false; }
+    setSaveMode();
+  }
+  // Gọi được máy chủ: hỏi tên rồi gửi tour lên. Không gọi được: nút thành "Chép JSON" và chép ngay trong cú bấm,
+  // để dán vào hộp Thêm tour của trang quản trị.
+  async function save() {
+    if (recording) stop();
+    if (!steps.length) return setInfo('Chưa có bước nào để lưu');
+    if (serverOk === false) {
+      return setInfo(copyNow(JSON.stringify(steps)) ? 'Đã chép JSON · dán vào Thêm tour ở trang quản trị' : 'Không chép được · dùng copy(TourFP.export()) trong console');
+    }
+    const name = (prompt('Tên tour:') || '').trim();
+    if (!name) return;
+    try {
+      const r = await fetch(SERVER + '/api/tours', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, steps }) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      serverOk = true;
+      setInfo(`Đã lưu «${name}»`);
+    } catch (_) {
+      serverOk = false; setSaveMode();
+      setInfo('Không gọi được máy chủ · bấm Chép JSON');
+    }
+  }
+  // tải một tour từ máy chủ theo mã rồi phát
+  async function run(id) {
+    const r = await fetch(`${SERVER}/api/tours/${encodeURIComponent(id)}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const t = await r.json();
+    steps.length = 0; steps.push(...t.steps); setInfo();
+    play();
+  }
+  bSave.onclick = save;
+  if (!PLAYER) probe(); // biết trước nên gửi hay chép, để cú bấm đầu tiên vào nút đã làm đúng việc
   bRec.onclick = () => (recording ? stop() : record());
   bPlay.onclick = play;
   bClr.onclick = () => { steps.length = 0; stopPlay(); };
@@ -685,7 +792,8 @@
   }
 
   window.TourFP = {
-    capture, captureAt: el => capture(clickableRoot(el)), isClickable, find, score, context, clickables, record, stop, play, destroy, steps,
+    capture, captureAt: el => capture(clickableRoot(el)), isClickable, save, run,
+    showPanel: (on = true) => { panel.style.display = on ? 'flex' : 'none'; }, find, score, context, clickables, record, stop, play, destroy, steps,
     apiStats: () => ({ responses: api.responses, values: api.set.size }),
     isApiValue,
     state: () => ({ recording, playing, steps: steps.length, target: target ? nameOf(capture(target)) : null, tip: tip.style.display === 'block' ? tipText.textContent : '' }),
@@ -702,4 +810,8 @@
       setTimeout(() => { const i = startIndex(); show(i >= 0 ? i : 0); }, 800);
     }
   } catch (_) { /* không đọc được thì bỏ qua */ }
+
+  // mở trang với ?tourfp=<mã>: tải tour đó từ máy chủ và phát luôn
+  const wanted = new URLSearchParams(location.search).get('tourfp');
+  if (wanted && !steps.length) run(wanted).catch(() => setInfo('Không tải được tour ' + wanted));
 })();

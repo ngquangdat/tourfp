@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tour · Quản trị</title>
+<style>
+  :root {
+    --bg: #0e0f12; --surface: #1a1b1f; --surface-2: #24262b; --line: rgba(255,255,255,.08);
+    --text: #f5f5f7; --muted: #9b9da5; --faint: #6c6f78;
+    --accent: #e5484d; --accent-press: #c93c41; --green: #3dd68c; --amber: #f0a93b; --blue: #5aa9ff;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; background: none; padding: 0; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 8px; }
+
+  .bar { position: sticky; top: 0; z-index: 5; background: rgba(14,15,18,.72); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--line); }
+  .bar-in, main { max-width: 880px; margin: 0 auto; padding: 0 20px; }
+  .bar-in { height: 56px; display: flex; align-items: center; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: -.01em; }
+  .brand i { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 700; }
+  .brand small { color: var(--muted); font-weight: 400; font-size: 13px; }
+  .grow { flex: 1; }
+
+  .btn { height: 34px; padding: 0 14px; border-radius: 17px; font-weight: 500; font-size: 14px; transition: background .15s, opacity .15s, transform .05s; white-space: nowrap; }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-press); }
+  .btn.tint { background: rgba(229,72,77,.14); color: #ff7b7f; }
+  .btn.tint:hover { background: rgba(229,72,77,.22); }
+  .btn.gray { background: var(--surface-2); }
+  .btn.gray:hover { background: #2e3037; }
+  .btn.plain { color: var(--muted); padding: 0 8px; }
+  .btn.plain:hover { color: var(--text); }
+  .btn.danger { color: #ff6b70; }
+  .btn[disabled] { opacity: .45; cursor: default; }
+
+  main { padding-top: 28px; padding-bottom: 80px; }
+  h1 { font-size: 30px; line-height: 1.15; letter-spacing: -.022em; margin: 0 0 4px; font-weight: 700; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+  .search { width: 100%; height: 38px; border-radius: 11px; border: 0; background: var(--surface); padding: 0 14px 0 36px; margin-bottom: 18px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%239b9da5' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.6'/%3E%3Cpath d='m10.6 10.6 3 3'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: 12px 50%; }
+  .search::placeholder, textarea::placeholder, .field input::placeholder { color: var(--faint); }
+
+  .list { background: var(--surface); border-radius: var(--radius); overflow: hidden; }
+  .row { border-top: 1px solid var(--line); }
+  .row:first-child { border-top: 0; }
+  .row-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+  .row-main { flex: 1; min-width: 0; text-align: left; display: flex; align-items: center; gap: 12px; }
+  .chev { width: 16px; height: 16px; flex: none; color: var(--faint); transition: transform .2s; }
+  .row.open .chev { transform: rotate(90deg); }
+  .row-text { min-width: 0; }
+  .name { font-weight: 600; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .meta code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; color: #c9cbd2; }
+  .acts { display: flex; align-items: center; gap: 6px; flex: none; }
+
+  .detail { padding: 2px 16px 16px 44px; }
+  .desc { color: var(--muted); font-size: 14px; margin: 0 0 10px; }
+  .steps { list-style: none; margin: 0; padding: 0; border-radius: 10px; background: var(--bg); }
+  .steps li { display: flex; align-items: baseline; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 14px; }
+  .steps li:first-child { border-top: 0; }
+  .num { color: var(--faint); width: 18px; text-align: right; font-variant-numeric: tabular-nums; flex: none; }
+  .kind { flex: none; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; letter-spacing: .01em; }
+  .kind.click { background: rgba(229,72,77,.16); color: #ff8a8e; }
+  .kind.hover { background: rgba(240,169,59,.16); color: var(--amber); }
+  .kind.info { background: rgba(90,169,255,.16); color: var(--blue); }
+  .kind.input { background: rgba(61,214,140,.16); color: var(--green); }
+  .target { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .screen { color: var(--faint); font: 12px ui-monospace, "SF Mono", Menlo, monospace; flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .detail-foot { display: flex; gap: 6px; margin-top: 10px; }
+
+  .empty { text-align: center; padding: 56px 20px; color: var(--muted); }
+  .empty b { display: block; color: var(--text); font-size: 17px; margin-bottom: 4px; }
+
+  .scrim { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.5); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: grid; place-items: center; padding: 20px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .18s, visibility 0s .18s; }
+  .scrim.on { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .18s; }
+  .sheet { width: 100%; max-width: 520px; max-height: calc(100vh - 40px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 22px; box-shadow: 0 24px 80px rgba(0,0,0,.6); transform: translateY(8px) scale(.985); transition: transform .18s; }
+  .scrim.on .sheet { transform: none; }
+  .sheet h2 { margin: 0 0 4px; font-size: 20px; letter-spacing: -.015em; }
+  .sheet p { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+  .sheet p b, .toast b { color: var(--text); font-weight: 600; }
+  .field { display: block; margin-bottom: 14px; }
+  .field span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field textarea { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 9px 12px; }
+  .field textarea { height: 150px; resize: vertical; font: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
+  .field input:focus, .field textarea:focus, .search:focus { outline: 2px solid rgba(229,72,77,.55); outline-offset: 0; }
+  .hint { font-size: 12px; color: var(--faint); margin: -8px 0 14px; }
+  .hint code, .sheet li code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; background: var(--bg); padding: 1px 5px; border-radius: 5px; color: #c9cbd2; }
+  .err { color: #ff7b7f; font-size: 13px; min-height: 18px; margin: 0 0 10px; }
+  .sheet-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+  .sheet ol { margin: 0 0 16px; padding: 0; list-style: none; counter-reset: s; }
+  .sheet ol li { counter-increment: s; display: flex; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .sheet ol li:first-child { border-top: 0; }
+  .sheet ol li::before { content: counter(s); flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+  .sheet ol li > div { flex: 1; min-width: 0; }
+  .sheet ol small { display: block; color: var(--faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); z-index: 30; background: rgba(40,42,48,.92); backdrop-filter: blur(16px); border: 1px solid var(--line); padding: 9px 16px; border-radius: 20px; font-size: 14px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 600px) {
+    .row-head { flex-wrap: wrap; }
+    .acts { width: 100%; padding-left: 28px; }
+    .detail { padding-left: 16px; }
+    .screen { display: none; }
+    h1 { font-size: 26px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <div class="brand"><i>T</i>Tour <small id="target"></small></div>
+  <div class="grow"></div>
+  <button class="btn primary" id="add">Thêm tour</button>
+</div></header>
+
+<main>
+  <h1>Tour hướng dẫn</h1>
+  <p class="sub" id="count">Đang tải…</p>
+  <input class="search" id="q" type="search" placeholder="Tìm theo tên hoặc màn bắt đầu" autocomplete="off">
+  <div id="list"></div>
+</main>
+
+<div class="scrim" id="addSheet"><form class="sheet" id="addForm" autocomplete="off">
+  <h2>Thêm tour</h2>
+  <p>Dán JSON của tour vừa ghi, hoặc chọn một file <code>.json</code>.</p>
+  <label class="field"><span>Tên tour</span><input id="fName" maxlength="120" required placeholder="Ví dụ: Lập kế hoạch tài chính"></label>
+  <label class="field"><span>Mô tả (không bắt buộc)</span><input id="fDesc" maxlength="500"></label>
+  <label class="field"><span>JSON của tour</span><textarea id="fJson" required spellcheck="false" placeholder='[{"kind":"click","fp":{…}}, …]'></textarea></label>
+  <div class="hint">Lấy JSON bằng lệnh <code>copy(TourFP.export())</code> trong console của trang đang ghi. <button type="button" class="btn plain" id="pick" style="height:auto;padding:0;color:var(--blue)">Chọn file…</button><input type="file" id="file" accept=".json,application/json" hidden></div>
+  <div class="err" id="fErr" role="alert"></div>
+  <div class="sheet-foot"><button type="button" class="btn gray" data-close>Huỷ</button><button class="btn primary" id="fSave">Lưu tour</button></div>
+</form></div>
+
+<div class="scrim" id="runSheet"><div class="sheet">
+  <h2>Chạy thử</h2>
+  <p id="runName"></p>
+  <ol>
+    <li><div>Sao chép mã chạy thử<small>Gồm thư viện và tour này trong một đoạn mã</small></div><button class="btn primary" id="runCopy">Sao chép</button></li>
+    <li><div>Mở màn bắt đầu của tour<small id="runUrl"></small></div><a class="btn gray" id="runOpen" target="_blank" rel="noopener" style="display:inline-grid;place-items:center;text-decoration:none;color:inherit">Mở trang</a></li>
+    <li><div>Mở console của trang đó, dán mã và nhấn Enter<small>Chrome trên Mac: ⌥⌘J · Windows: Ctrl+Shift+J</small></div></li>
+  </ol>
+  <p style="margin:0 0 14px;font-size:13px">Nếu trang đã cài sẵn thư viện, chỉ cần mở <code id="runParam" style="font:12px ui-monospace,Menlo,monospace;color:#c9cbd2"></code></p>
+  <div class="sheet-foot"><button class="btn gray" data-close>Xong</button></div>
+</div></div>
+
+<div class="scrim" id="delSheet"><div class="sheet" style="max-width:400px">
+  <h2>Xoá tour này?</h2>
+  <p id="delName"></p>
+  <div class="sheet-foot"><button class="btn gray" data-close>Huỷ</button><button class="btn primary" id="delGo">Xoá</button></div>
+</div></div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const KIND = { click: 'Bấm', hover: 'Rê chuột', input: 'Nhập', info: 'Tô sáng' };
+const CHEV = '<svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>';
+let tours = [], openId = null, pending = null;
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (r.ok) return r.status === 204 ? null : r.json();
+  let msg = 'Lỗi ' + r.status;
+  try { const d = (await r.json()).detail; msg = Array.isArray(d) ? d.map(x => String(x.msg).replace(/^Value error, /, '')).join('; ') : d || msg; } catch (_) {}
+  throw new Error(msg);
+}
+// phần đặt trong «…» (tên tour) thành chữ in đậm, bỏ dấu ngoặc
+const rich = (node, text) => { node.replaceChildren(); String(text).split(/«([^»]*)»/).forEach((p, i) => { if (p) node.append(i % 2 ? el('b', '', p) : p); }); };
+const toast = t => { const e = $('toast'); rich(e, t); e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 2200); };
+const show = id => { $(id).classList.add('on'); const f = $(id).querySelector('input,textarea,button'); if (f) setTimeout(() => f.focus(), 50); };
+const hide = () => document.querySelectorAll('.scrim.on').forEach(s => s.classList.remove('on'));
+const when = t => new Date(t * 1000).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const stepName = s => (s.fp.segs && s.fp.segs[0]) || s.fp.label || s.fp.icon || s.fp.tag || '—';
+const screenOf = c => c.path + (c.dialog ? ' › ' + c.dialog.replace(/^app-/, '') : '') + (c.step ? ' › ' + c.step.replace(/^#/, '') : '');
+
+function render() {
+  const q = $('q').value.trim().toLowerCase();
+  const shown = tours.filter(t => !q || t.name.toLowerCase().includes(q) || t.start_path.toLowerCase().includes(q));
+  $('count').textContent = tours.length ? `${tours.length} tour đã lưu` : 'Chưa có tour nào';
+  const box = $('list'); box.replaceChildren();
+  if (!shown.length) {
+    const e = el('div', 'empty');
+    e.append(el('b', '', tours.length ? 'Không tìm thấy tour nào' : 'Chưa có tour nào'), tours.length ? 'Thử từ khoá khác.' : 'Ghi một tour bằng thanh TourFP trên trang, rồi bấm Thêm tour.');
+    box.append(e); return;
+  }
+  const list = el('div', 'list');
+  for (const t of shown) {
+    const row = el('div', 'row' + (t.id === openId ? ' open' : ''));
+    const head = el('div', 'row-head');
+    const main = el('button', 'row-main'); main.innerHTML = CHEV; main.setAttribute('aria-expanded', t.id === openId);
+    const text = el('div', 'row-text');
+    const meta = el('div', 'meta');
+    meta.append(`${t.step_count} bước · `, el('code', '', t.start_path), ` · ${t.layout === 'mobile' ? 'Mobile' : t.layout === 'desktop' ? 'Desktop' : 'Không rõ bố cục'} · ${when(t.created_at)}`);
+    text.append(el('div', 'name', t.name), meta); main.append(text);
+    main.onclick = () => { openId = openId === t.id ? null : t.id; render(); };
+    const acts = el('div', 'acts');
+    const run = el('button', 'btn tint', 'Chạy thử'); run.onclick = () => openRun(t);
+    const del = el('button', 'btn plain danger', 'Xoá'); del.onclick = () => { pending = t; rich($('delName'), `«${t.name}» với ${t.step_count} bước sẽ bị xoá khỏi máy chủ. Không hoàn tác được.`); show('delSheet'); };
+    acts.append(run, del); head.append(main, acts); row.append(head);
+    if (t.id === openId) { const d = el('div', 'detail'); d.append(el('div', 'meta', 'Đang tải các bước…')); row.append(d); fill(d, t); }
+    list.append(row);
+  }
+  box.append(list);
+}
+
+async function fill(d, t) {
+  try {
+    const full = await api('/api/tours/' + t.id);
+    d.replaceChildren();
+    if (full.description) d.append(el('p', 'desc', full.description));
+    const ol = el('ol', 'steps');
+    full.steps.forEach((s, i) => {
+      const li = el('li');
+      li.append(el('span', 'num', i + 1), el('span', 'kind ' + s.kind, KIND[s.kind] || s.kind), el('span', 'target', stepName(s)), el('span', 'screen', screenOf(s.fp.ctx)));
+      ol.append(li);
+    });
+    const foot = el('div', 'detail-foot');
+    const dl = el('button', 'btn gray', 'Tải JSON');
+    dl.onclick = () => { const a = el('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(full.steps, null, 2)], { type: 'application/json' })); a.download = t.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') + '.json'; a.click(); URL.revokeObjectURL(a.href); };
+    foot.append(dl); d.append(ol, foot);
+  } catch (e) { d.replaceChildren(el('div', 'err', e.message)); }
+}
+
+function openRun(t) {
+  pending = t;
+  rich($('runName'), `«${t.name}» · ${t.step_count} bước · bố cục ${t.layout || 'không rõ'}`);
+  $('runUrl').textContent = t.start_url; $('runOpen').href = t.start_url;
+  $('runParam').textContent = `${t.start_url}?tourfp=${t.id}`;
+  $('runCopy').textContent = 'Sao chép';
+  show('runSheet');
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
+  const ta = el('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.append(ta); ta.select();
+  const ok = document.execCommand('copy'); ta.remove(); return ok;
+}
+$('runCopy').onclick = async () => {
+  try {
+    const code = await (await fetch(`/api/tours/${pending.id}/snippet.js`)).text();
+    if (await copyText(code)) { $('runCopy').textContent = 'Đã chép'; toast(`Đã chép mã chạy thử (${Math.round(code.length / 1024)} KB)`); } else toast('Trình duyệt không cho chép. Hãy thử lại.');
+  } catch (e) { toast(e.message); }
+};
+
+$('add').onclick = () => { $('addForm').reset(); $('fErr').textContent = ''; show('addSheet'); };
+$('pick').onclick = () => $('file').click();
+$('file').onchange = async e => { const f = e.target.files[0]; if (!f) return; $('fJson').value = await f.text(); if (!$('fName').value) $('fName').value = f.name.replace(/\.json$/i, ''); };
+$('addForm').onsubmit = async e => {
+  e.preventDefault(); $('fErr').textContent = '';
+  let steps;
+  try { steps = JSON.parse($('fJson').value); } catch (_) { $('fErr').textContent = 'JSON không hợp lệ. Hãy dán nguyên văn kết quả của TourFP.export().'; return; }
+  if (steps && !Array.isArray(steps) && Array.isArray(steps.steps)) steps = steps.steps;
+  if (!Array.isArray(steps) || !steps.length) { $('fErr').textContent = 'JSON phải là một danh sách bước, ít nhất một bước.'; return; }
+  $('fSave').disabled = true;
+  try {
+    const t = await api('/api/tours', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('fName').value, description: $('fDesc').value, steps }) });
+    hide(); openId = t.id; await load(); toast(`Đã lưu «${t.name}»`);
+  } catch (err) { $('fErr').textContent = err.message; }
+  $('fSave').disabled = false;
+};
+$('delGo').onclick = async () => {
+  try { await api('/api/tours/' + pending.id, { method: 'DELETE' }); hide(); if (openId === pending.id) openId = null; await load(); toast(`Đã xoá «${pending.name}»`); }
+  catch (e) { hide(); toast(e.message); }
+};
+
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = hide);
+document.querySelectorAll('.scrim').forEach(s => s.addEventListener('mousedown', e => { if (e.target === s) hide(); }));
+addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
+$('q').oninput = render;
+
+async function load() { try { tours = await api('/api/tours'); } catch (e) { tours = []; toast(e.message); } render(); }
+api('/api/config').then(c => { $('target').textContent = new URL(c.target).host; }).catch(() => {});
+load();
+</script>
+</body>
+</html>
