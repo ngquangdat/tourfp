@@ -300,7 +300,7 @@
     <div class="seg" id="runMode"><button type="button" data-mode="guide">Hướng dẫn từng bước</button><button type="button" data-mode="direct">Vào thẳng</button></div>
     <label>Dừng sau bước <input id="runTo" type="number" min="1"> <span id="runOf"></span></label>
   </div>
-  <div class="play-row"><div>Chạy trên máy này<small>Chép mã chạy thử và mở màn bắt đầu. Ở đó mở bookmark TourFP, dán mã, OK · <button type="button" class="btn plain link" data-bm>Cài bookmark TourFP</button></small></div><button class="btn primary" id="runHere" type="button">Chép mã và mở trang</button></div>
+  <div class="play-row"><div>Chạy trên máy này<small>Chép mã chạy thử và mở màn bắt đầu. Ở đó mở bookmark TourFP, dán mã, bấm Chạy tour · <button type="button" class="btn plain link" data-bm>Cài bookmark TourFP</button></small></div><button class="btn primary" id="runHere" type="button">Chép mã và mở trang</button></div>
   <div class="play-row only-local"><div>Chạy bằng Chrome của máy chủ<small id="runWhat"></small></div><button class="btn gray" id="runPlay" type="button">Chạy</button></div>
   <p class="meta" id="runNote"></p>
   <p style="margin:0 0 14px;font-size:13px">Nếu trang đã cài sẵn thư viện, chỉ cần mở <code id="runParam" style="font:12px ui-monospace,Menlo,monospace;color:var(--code)"></code></p>
@@ -509,7 +509,7 @@ async function pollRecord() {
   try { r = await api('/api/record'); } catch (_) { pollRecord.t = setTimeout(pollRecord, 3000); return; }
   $('fRec').disabled = r.open || (tests && (tests.running || tests.login_open || tests.play_open));
   $('fRecNote').textContent = r.open ? 'Chrome của máy chủ đang mở. Ghi xong bấm Gửi trên thanh TourFP.' : r.error ? 'Không mở được Chrome: ' + r.error
-    : recHint || 'Ghi trên máy này: sang trang đích, mở bookmark TourFP, để trống ô mã rồi OK, ghi xong bấm Gửi để quay về đây.';
+    : recHint || 'Ghi trên máy này: sang trang đích, mở bookmark TourFP, chọn Ghi tour mới, ghi xong bấm Gửi để quay về đây.';
   if (r.steps && r.at > recSeen) {
     recSeen = recFrom = r.at;
     $('fJson').value = JSON.stringify(r.steps);
@@ -668,19 +668,14 @@ async function packTour(obj) {
   let bin = ''; for (const b of new Uint8Array(gz)) bin += String.fromCharCode(b);
   return 'TFP1:' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-// Bookmark TourFP. Mở trên trang đích:
-//  - lấy tour cần phát: thử window.name trước (trình duyệt còn giữ thì khỏi dán), không có thì hỏi để dán mã chạy thử;
-//  - có tour thì phát, để trống thì hiện thanh ghi. Bấm "Gửi" trên thanh ghi: chép tour rồi quay về trang quản trị.
+// Bookmark TourFP chỉ nạp thư viện từ CDN rồi gọi TourFP.bookmark(); khung chọn (dán mã chạy thử / ghi tour mới) và nút Gửi
+// nằm trong thư viện. Bookmark trỏ tới dòng phiên bản (ví dụ tourfp@0.3), nên phát hành bản sửa là bookmark tự dùng bản mới.
 function bookmarklet() {
-  const admin = location.origin, lib = `https://cdn.jsdelivr.net/npm/tourfp@${cfg.version || '0'}/tourfp.js`;
-  const code = `(async()=>{const A=${JSON.stringify(admin)};let p=null;const n=window.name||'';`
-    + `if(n.startsWith('tourfp-play:')){try{p=JSON.parse(n.slice(12))}catch(e){}window.name=''}`
-    + `if(!p){const t=prompt('TourFP: dán mã chạy thử để chạy tour.\\nĐể trống rồi bấm OK để ghi tour mới.','');if(t===null)return;const v=t.trim();`
-    + `if(v){try{if(v.startsWith('TFP1:')){const b=atob(v.slice(5).replace(/-/g,'+').replace(/_/g,'/'));const u=Uint8Array.from(b,c=>c.charCodeAt(0));`
-    + `p=await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).json()}else p=JSON.parse(v)}catch(e){return alert('Mã chạy thử không đúng. Hãy chép lại ở trang quản trị.')}}}`
-    + `window.__tourfpHost=j=>{const a=document.createElement('textarea');a.value=j;a.style.cssText='position:fixed;opacity:0';document.body.append(a);a.select();try{document.execCommand('copy')}catch(e){}a.remove();window.name='tourfp-draft:'+j;location.href=A+'/#add'};`
-    + `const go=()=>{if(p){TourFP.showPanel(false);TourFP.load(p.steps);TourFP.start(p.start)}else TourFP.showPanel(true)};`
-    + `if(window.TourFP)return go();if(p)window.TOURFP_PLAYER=true;const s=document.createElement('script');s.src=${JSON.stringify(lib)};s.onload=go;s.onerror=()=>alert('Không nạp được TourFP');document.head.appendChild(s)})()`;
+  const admin = location.origin, line = (cfg.version || '0').split('.').slice(0, 2).join('.');
+  const lib = `https://cdn.jsdelivr.net/npm/tourfp@${line}/tourfp.js`;
+  const code = `(()=>{window.TOURFP_ADMIN=${JSON.stringify(admin)};if(window.TourFP&&TourFP.bookmark)return TourFP.bookmark();`
+    + `window.TOURFP_PLAYER=true;window.TOURFP_BOOKMARK=true;const s=document.createElement('script');s.src=${JSON.stringify(lib)};`
+    + `s.onerror=()=>alert('Không nạp được TourFP');document.head.appendChild(s)})()`;
   return 'javascript:' + encodeURIComponent(code);
 }
 async function copyText(text) {

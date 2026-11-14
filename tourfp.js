@@ -1158,6 +1158,53 @@
     choice = { guide: () => go('guide'), direct: () => go('direct') };
     return a;
   }
+  // ---------- bookmark TourFP ----------
+  // Bookmark chỉ nạp thư viện (window.TOURFP_BOOKMARK) rồi gọi hàm này; mọi xử lý nằm ở đây để sửa thư viện là bookmark
+  // tự có bản mới, không phải tạo lại bookmark. Không dùng prompt()/alert(): trình duyệt do Playwright điều khiển tự đóng
+  // các hộp đó ngay, và trên điện thoại chúng dễ bị đóng khi bàn phím bật lên. Thay bằng một khung ngay trong trang.
+  async function unpack(v) {
+    v = v.trim();
+    if (v.startsWith('TFP1:')) {
+      const b = atob(v.slice(5).replace(/-/g, '+').replace(/_/g, '/'));
+      const u = Uint8Array.from(b, c => c.charCodeAt(0));
+      return new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+    }
+    return JSON.parse(v);
+  }
+  function playPack(q) {
+    if (!q || !Array.isArray(q.steps) || !q.steps.length) throw new Error('bad');
+    panel.style.display = 'none';
+    window.TourFP.load(q.steps);
+    start(q.start || {});
+  }
+  function bookmark() {
+    const admin = String(window.TOURFP_ADMIN || '').replace(/\/$/, '');
+    // "Gửi" trên thanh ghi: chép tour (phòng khi trình duyệt xoá window.name) rồi quay về trang quản trị
+    // (cửa sổ Chrome do máy chủ mở đã có sẵn đường gửi riêng: giữ nguyên)
+    if (typeof window.__tourfpHost !== 'function') window.__tourfpHost = j => { copyNow(j); window.name = 'tourfp-draft:' + j; if (admin) location.href = admin + '/#add'; };
+    const n = window.name || '';
+    if (n.startsWith('tourfp-play:')) { window.name = ''; try { return playPack(JSON.parse(n.slice(12))); } catch (_) { /* hỏng thì hỏi mã */ } }
+    const old = document.getElementById('tourfp-pick'); if (old) old.remove();
+    const d = mk('div', `position:fixed;left:12px;right:12px;bottom:${innerWidth < 768 ? 80 : 16}px;max-width:420px;margin:0 auto;z-index:${Z + 5};background:#16181d;color:#fff;border:1px solid #3a3f4b;border-radius:14px;padding:14px;box-sizing:border-box;box-shadow:0 10px 40px rgba(0,0,0,.5);${FONT}`);
+    d.id = 'tourfp-pick';
+    const title = mk('div', 'font-weight:600;font-size:15px;margin-bottom:8px', 'TourFP');
+    const ta = mk('textarea', 'display:block;width:100%;box-sizing:border-box;height:64px;resize:none;border-radius:8px;border:1px solid #3a3f4b;background:#0e0f12;color:#fff;padding:8px;font:16px/1.3 system-ui,sans-serif');
+    ta.placeholder = 'Dán mã chạy thử để chạy tour';
+    const err = mk('div', 'color:#ff8a8e;font-size:13px;min-height:18px;margin:6px 0');
+    const row = mk('div', 'display:flex;gap:8px;flex-wrap:wrap');
+    const bGo = mk('button', btnCss + 'background:#e5484d;padding:7px 14px', 'Chạy tour');
+    const bNew = mk('button', btnCss + 'padding:7px 14px', 'Ghi tour mới');
+    const bX = mk('button', btnCss + 'background:transparent;padding:7px 10px;margin-left:auto', 'Đóng');
+    row.append(bGo, bNew, bX); d.append(title, ta, err, row);
+    bGo.onclick = async () => {
+      if (!ta.value.trim()) { err.textContent = 'Chưa dán mã chạy thử.'; return; }
+      try { const q = await unpack(ta.value); d.remove(); playPack(q); }
+      catch (_) { err.textContent = 'Mã chạy thử không đúng. Hãy chép lại ở trang quản trị.'; }
+    };
+    bNew.onclick = () => { d.remove(); stopPlay(); panel.style.display = 'flex'; probe(); setInfo('Bấm ● Ghi để bắt đầu'); };
+    bX.onclick = () => d.remove();
+    document.documentElement.append(d);
+  }
   bSave.onclick = save;
   if (!PLAYER) probe(); // biết trước nên gửi hay chép, để cú bấm đầu tiên vào nút đã làm đúng việc
   bRec.onclick = () => (recording ? stop() : record());
@@ -1181,7 +1228,7 @@
     capture, captureAt: el => capture(clickableRoot(el)), isClickable, save, run, start, direct, ask, locate,
     showPanel: (on = true) => { panel.style.display = on ? 'flex' : 'none'; }, find, score, context, clickables, record, stop, play, destroy, steps,
     apiStats: () => ({ responses: api.responses, values: api.set.size }),
-    appVersion,
+    appVersion, bookmark,
     isApiValue,
     state: () => ({ recording, playing, steps: steps.length, target: target ? nameOf(capture(target)) : null, tip: tip.style.display === 'block' ? tipText.textContent : '' }),
     export: () => { scrub(); return JSON.stringify(steps, null, 2); },
@@ -1205,4 +1252,5 @@
   // mở trang với ?tourfp=<mã>[&mode=guide|direct][&to=<bước>]: tải tour đó từ máy chủ và chạy luôn
   const qs = new URLSearchParams(location.search), wanted = qs.get('tourfp');
   if (wanted && !steps.length) run(wanted, { mode: qs.get('mode'), to: qs.get('to') }).catch(() => setInfo('Không tải được tour ' + wanted));
+  if (window.TOURFP_BOOKMARK) { delete window.TOURFP_BOOKMARK; bookmark(); }
 })();
