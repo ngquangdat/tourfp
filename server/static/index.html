@@ -328,7 +328,7 @@
   <h2>Bookmark TourFP</h2>
   <p>Bookmark nạp TourFP vào trang đang mở, để ghi và chạy thử tour ngay trên máy này. Tạo một lần.</p>
   <ol>
-    <li><div>Chép mã của bookmark</div><button class="btn primary" id="bmCopy" type="button">Chép mã</button></li>
+    <li><div>Chép mã của bookmark<small id="bmBack"></small></div><button class="btn primary" id="bmCopy" type="button">Chép mã</button></li>
     <li><div>Tạo bookmark cho trang bất kỳ<small>Máy tính: ⌘D (Mac) hoặc Ctrl+D (Windows) · Điện thoại: menu ⋮ → ☆</small></div></li>
     <li><div>Sửa bookmark vừa tạo: đặt tên <b>TourFP</b>, xoá hết ô địa chỉ (URL) rồi dán mã vừa chép, lưu lại</div></li>
     <li><div>Khi dùng: đang ở trang TCInvest thì mở bookmark TourFP<small>Android Chrome: gõ TourFP vào thanh địa chỉ rồi chọn dòng bookmark</small></div></li>
@@ -671,7 +671,7 @@ async function packTour(obj) {
 // Bookmark TourFP chỉ nạp thư viện từ CDN rồi gọi TourFP.bookmark(); khung chọn (dán mã chạy thử / ghi tour mới) và nút Gửi
 // nằm trong thư viện. Bookmark trỏ tới dòng phiên bản (ví dụ tourfp@0.3), nên phát hành bản sửa là bookmark tự dùng bản mới.
 function bookmarklet() {
-  const admin = location.origin, line = (cfg.version || '0').split('.').slice(0, 2).join('.');
+  const admin = cfg.public_url || location.origin, line = (cfg.version || '0').split('.').slice(0, 2).join('.');
   const lib = `https://cdn.jsdelivr.net/npm/tourfp@${line}/tourfp.js`;
   const code = `(()=>{window.TOURFP_ADMIN=${JSON.stringify(admin)};if(window.TourFP&&TourFP.bookmark)return TourFP.bookmark();`
     + `window.TOURFP_PLAYER=true;window.TOURFP_BOOKMARK=true;const s=document.createElement('script');s.src=${JSON.stringify(lib)};`
@@ -683,7 +683,7 @@ async function copyText(text) {
   const ta = el('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.append(ta); ta.select();
   const ok = document.execCommand('copy'); ta.remove(); return ok;
 }
-document.querySelectorAll('[data-bm]').forEach(b => b.onclick = () => show('bmSheet'));
+document.querySelectorAll('[data-bm]').forEach(b => b.onclick = () => { $('bmBack').textContent = 'Ghi xong bấm Gửi sẽ quay về ' + (cfg.public_url || location.origin); show('bmSheet'); });
 $('bmDone').onclick = () => $('bmSheet').classList.remove('on'); // chỉ đóng hộp này, hộp đang mở bên dưới vẫn giữ
 $('bmCopy').onclick = async () => toast(await copyText(bookmarklet()) ? 'Đã chép mã bookmark TourFP' : 'Trình duyệt không cho chép');
 // ghi trên máy này: sang trang đích, mở bookmark TourFP, ghi rồi bấm Gửi

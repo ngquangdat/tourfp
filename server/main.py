@@ -8,6 +8,8 @@ Cấu hình qua biến môi trường:
   TOURFP_TEST_HEADLESS  mặc định ban đầu cho việc hiện cửa sổ Chrome khi kiểm thử: 1 chạy ẩn, 0 hiện cửa sổ (mặc định: hiện).
                         Sau đó chỉnh bằng ô "Hiện cửa sổ Chrome" trên trang quản trị.
 
+  TOURFP_PUBLIC_URL     địa chỉ công khai của trang quản trị (ví dụ https://tourfp.example.com), để bookmark TourFP quay về
+                        đúng chỗ sau khi bấm Gửi. Không đặt thì lấy theo tên miền đang dùng để vào trang.
   TOURFP_ADMIN_PASSWORD mật khẩu khi vào trang từ xa (qua tên miền, Cloudflare Tunnel…). Không đặt thì đọc file
                         <TOURFP_DATA>/admin-password.txt. Tên đăng nhập: admin.
 
@@ -237,12 +239,26 @@ def adapter() -> tuple[ai.Adapter | None, str | None]:
     return _adapter, None
 
 
+def _public_url(request: Request) -> str:
+    """Địa chỉ trang quản trị mà bookmark TourFP quay về sau khi bấm Gửi.
+
+    TOURFP_PUBLIC_URL nếu có đặt; không thì lấy từ tên miền người dùng đang dùng để vào trang (Cloudflare Tunnel giữ nguyên
+    tên miền gốc trong header Host).
+    """
+    env = os.environ.get("TOURFP_PUBLIC_URL", "").strip().rstrip("/")
+    if env:
+        return env
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    proto = request.headers.get("x-forwarded-proto") or ("https" if "cf-ray" in request.headers else request.url.scheme)
+    return f"{proto}://{host}" if host else ""
+
+
 @app.get("/api/config")
-def config() -> dict[str, Any]:
+def config(request: Request) -> dict[str, Any]:
     ad, err = adapter()
     m = re.search(r"TourFP (\d+\.\d+\.\d+)", LIB.read_text(encoding="utf-8")[:200])
     # version: bản thư viện, để nút TourFP (dấu trang) nạp đúng bản đó từ CDN
-    return {"target": TARGET, "version": m.group(1) if m else "", "ai": ad.name if ad else "off", "ai_model": os.environ.get("TOURFP_AI_MODEL", "") if ad else "", "ai_error": err}
+    return {"target": TARGET, "version": m.group(1) if m else "", "public_url": _public_url(request), "ai": ad.name if ad else "off", "ai_model": os.environ.get("TOURFP_AI_MODEL", "") if ad else "", "ai_error": err}
 
 
 @app.get("/api/tours")
