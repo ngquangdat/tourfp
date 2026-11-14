@@ -1,4 +1,4 @@
-/* TourFP 0.3.0 — bản thử: ghi tour theo thao tác và khớp phần tử bằng "dấu vân tay".
+/* TourFP 0.3.1 — bản thử: ghi tour theo thao tác và khớp phần tử bằng "dấu vân tay".
  * - Không dùng class/id. Không phụ thuộc thư viện.
  * - Chữ lấy từ API (tên, tên kế hoạch…) và chữ số bị loại khỏi dấu vân tay.
  *   Để lọc được, file này phải được nạp TRƯỚC khi app gọi API (đặt trong <head>).
@@ -78,7 +78,7 @@
     // chỉ cần vài mẩu đầu: với khối lớn (thẻ, bảng) đó là tiêu đề
     for (let n; (n = w.nextNode()) && nodes < 40 && out.length < 6;) {
       const v = n.nodeValue;
-      if (!v.trim() || (n.parentElement && n.parentElement.closest('svg,script,style'))) continue;
+      if (!v.trim() || (n.parentElement && n.parentElement.closest('svg,script,style,mat-icon,.material-icons'))) continue;
       nodes++;
       if (/\d/.test(v)) digits = true;
       for (const seg of v.split(/\d[\d.,%\/:-]*/)) { const s = norm(seg); if (s.length >= 2 && hasLetters(s)) { out.push(s.slice(0, 60)); num.push(/\d/.test(v)); } }
@@ -641,7 +641,7 @@
   async function show(i) {
     if (i >= steps.length) return stopPlay(`Xong tour · ${steps.length} bước`);
     playing = i; target = null; advancing = false; box.style.display = 'none';
-    const st = steps[i], nx = steps[i + 1], name = nameOf(st.fp), head = `Bước ${i + 1}/${steps.length}`;
+    const st = steps[i], nx = steps[i + 1], name = st.title || nameOf(st.fp), head = `Bước ${i + 1}/${steps.length}`;
     // bước rê chuột mà đích của bước sau đã hiện sẵn thì không cần rê nữa
     if (st.kind === 'hover' && nx && find(nx.fp).el) return show(i + 1);
     box.style.borderColor = '#e5484d'; box.style.boxShadow = '0 0 0 9999px rgba(0,0,0,.5)';

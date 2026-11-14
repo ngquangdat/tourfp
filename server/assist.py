@@ -46,6 +46,8 @@ def tokens(text: str) -> list[str]:
 
 
 def step_name(step: dict[str, Any]) -> str:
+    if step.get("title"):  # tên do người quản trị đặt
+        return str(step["title"]).strip()
     fp = step.get("fp") or {}
     segs = fp.get("segs") or []
     return str(segs[0] if segs else fp.get("label") or fp.get("icon") or fp.get("tag") or "").strip()

@@ -187,6 +187,41 @@ def get_tour(tour_id: str) -> dict[str, Any]:
     return {**summary(row), "steps": json.loads(row["steps"])}
 
 
+class TourPatch(BaseModel):
+    """Sửa tên, mô tả, hoặc tên hiển thị của từng bước. Trường nào không gửi thì giữ nguyên."""
+
+    name: str | None = Field(default=None, max_length=120)
+    description: str | None = Field(default=None, max_length=500)
+    # tên hiển thị cho từng bước, theo đúng thứ tự bước; chuỗi rỗng hoặc null = dùng lại tên tự lấy từ giao diện
+    titles: list[str | None] | None = Field(default=None, max_length=MAX_STEPS)
+
+
+@app.patch("/api/tours/{tour_id}")
+def update_tour(tour_id: str, patch: TourPatch) -> dict[str, Any]:
+    with closing(db()) as conn, conn:
+        row = get_row(conn, tour_id)
+        if patch.name is not None:
+            name = patch.name.strip()
+            if not name:
+                raise HTTPException(422, "Tên tour không được để trống")
+            conn.execute("UPDATE tours SET name = ? WHERE id = ?", (name, tour_id))
+        if patch.description is not None:
+            conn.execute("UPDATE tours SET description = ? WHERE id = ?", (patch.description.strip(), tour_id))
+        if patch.titles is not None:
+            steps = json.loads(row["steps"])
+            if len(patch.titles) != len(steps):
+                raise HTTPException(422, f"Cần đúng {len(steps)} tên, mỗi bước một tên")
+            for step, title in zip(steps, patch.titles):
+                title = (title or "").strip()[:80]
+                if title:
+                    step["title"] = title
+                else:
+                    step.pop("title", None)
+            conn.execute("UPDATE tours SET steps = ? WHERE id = ?", (json.dumps(steps, ensure_ascii=False), tour_id))
+        row = get_row(conn, tour_id)
+    return {**summary(row), "steps": json.loads(row["steps"])}
+
+
 @app.delete("/api/tours/{tour_id}", status_code=204)
 def delete_tour(tour_id: str) -> Response:
     with closing(db()) as conn, conn:

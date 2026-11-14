@@ -29,13 +29,13 @@ Với Angular, nên khai báo trong `angular.json` để thư viện được n�
 Hoặc không cần cài, nạp bằng một thẻ script qua CDN:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/tourfp@0.3.0/tourfp.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tourfp@0.3.1/tourfp.js"></script>
 ```
 
 Để dùng thử nhanh trên một trang đang mở (trang phải cho phép script từ `cdn.jsdelivr.net`), dán dòng này vào console:
 
 ```js
-document.head.appendChild(Object.assign(document.createElement('script'), { src: 'https://cdn.jsdelivr.net/npm/tourfp@0.3.0/tourfp.js' }));
+document.head.appendChild(Object.assign(document.createElement('script'), { src: 'https://cdn.jsdelivr.net/npm/tourfp@0.3.1/tourfp.js' }));
 ```
 
 Tuỳ chọn, đặt trước khi nạp thư viện:
@@ -89,6 +89,7 @@ Mở <http://localhost:8000>:
 - **Chạy thử** — chép một đoạn mã gồm cả thư viện lẫn tour; mở màn bắt đầu của tour, dán vào console là tour phát ngay.
   Khi chạy thử, thanh ghi tour không hiện (chế độ chỉ phát); gọi `TourFP.showPanel()` nếu cần hiện lại.
 - **Xoá**, **Tải JSON**, và xem danh sách bước của từng tour.
+- **Sửa tên**: bấm vào tên một bước để đặt tên hiển thị cho bước đó (để trống thì dùng lại tên tự lấy từ giao diện); nút **Sửa tên tour** đổi tên và mô tả của tour. Tên đã đặt được dùng trong lời hướng dẫn khi phát và trong việc tìm tour của trợ lý.
 
 Cấu hình bằng biến môi trường: `TOURFP_TARGET` là trang web tour chạy trên đó (mặc định `https://tcinvest.tcbs.com.vn`),
 `TOURFP_DATA` là thư mục chứa file SQLite.

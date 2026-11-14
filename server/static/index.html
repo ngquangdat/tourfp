@@ -71,6 +71,12 @@
   .kind.info { background: rgba(90,169,255,.16); color: var(--blue); }
   .kind.input { background: rgba(61,214,140,.16); color: var(--green); }
   .target { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  button.target { text-align: left; border-radius: 6px; padding: 2px 6px; margin: -2px -6px; }
+  button.target:hover { background: var(--surface-2); }
+  button.target::after { content: "Sửa"; margin-left: 8px; font-size: 11px; color: var(--blue); opacity: 0; }
+  button.target:hover::after, button.target:focus-visible::after { opacity: 1; }
+  button.target .auto { color: var(--faint); font-size: 12px; margin-left: 8px; }
+  input.target { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 2px 6px; margin: -3px -7px; outline: 2px solid rgba(229,72,77,.55); }
   .screen { color: var(--faint); font: 12px ui-monospace, "SF Mono", Menlo, monospace; flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .detail-foot { display: flex; gap: 6px; margin-top: 10px; }
 
@@ -187,6 +193,15 @@
   <div class="sheet-foot"><button class="btn gray" data-close>Xong</button></div>
 </div></div>
 
+<div class="scrim" id="editSheet"><form class="sheet" id="editForm" autocomplete="off" style="max-width:440px">
+  <h2>Sửa tour</h2>
+  <p>Tên và mô tả cũng là thứ trợ lý dùng để tìm tour.</p>
+  <label class="field"><span>Tên tour</span><input id="eName" maxlength="120" required></label>
+  <label class="field"><span>Mô tả (không bắt buộc)</span><input id="eDesc" maxlength="500"></label>
+  <div class="err" id="eErr" role="alert"></div>
+  <div class="sheet-foot"><button type="button" class="btn gray" data-close>Huỷ</button><button class="btn primary" id="eSave">Lưu</button></div>
+</form></div>
+
 <div class="scrim" id="delSheet"><div class="sheet" style="max-width:400px">
   <h2>Xoá tour này?</h2>
   <p id="delName"></p>
@@ -215,7 +230,8 @@ const toast = t => { const e = $('toast'); rich(e, t); e.classList.add('on'); cl
 const show = id => { $(id).classList.add('on'); const f = $(id).querySelector('input,textarea,button'); if (f) setTimeout(() => f.focus(), 50); };
 const hide = () => document.querySelectorAll('.scrim.on').forEach(s => s.classList.remove('on'));
 const when = t => new Date(t * 1000).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-const stepName = s => (s.fp.segs && s.fp.segs[0]) || s.fp.label || s.fp.icon || s.fp.tag || '—';
+const autoName = s => (s.fp.segs && s.fp.segs[0]) || s.fp.label || s.fp.icon || s.fp.tag || '—'; // tên thư viện tự lấy từ giao diện
+const stepName = s => s.title || autoName(s);
 const screenOf = c => c.path + (c.dialog ? ' › ' + c.dialog.replace(/^app-/, '') : '') + (c.step ? ' › ' + c.step.replace(/^#/, '') : '');
 
 function render() {
@@ -256,13 +272,35 @@ async function fill(d, t) {
     const ol = el('ol', 'steps');
     full.steps.forEach((s, i) => {
       const li = el('li');
-      li.append(el('span', 'num', i + 1), el('span', 'kind ' + s.kind, KIND[s.kind] || s.kind), el('span', 'target', stepName(s)), el('span', 'screen', screenOf(s.fp.ctx)));
+      // tên bước: bấm vào để sửa. Để trống (hoặc trùng tên tự lấy) thì quay về tên tự lấy từ giao diện.
+      const name = el('button', 'target', stepName(s)); name.type = 'button'; name.title = 'Bấm để đổi tên bước này';
+      if (s.title) name.append(el('span', 'auto', '(gốc: ' + autoName(s) + ')'));
+      name.onclick = () => {
+        const inp = el('input', 'target'); inp.maxLength = 80; inp.value = s.title || autoName(s); inp.placeholder = autoName(s);
+        let done = false;
+        const finish = async save => {
+          if (done) return; done = true;
+          const v = inp.value.trim(), title = v === autoName(s) ? '' : v;
+          if (!save || title === (s.title || '')) return fill(d, t);
+          try {
+            await api('/api/tours/' + t.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ titles: full.steps.map((x, j) => (j === i ? title : x.title || '')) }) });
+            toast(title ? `Đã đổi tên bước ${i + 1} thành «${title}»` : `Bước ${i + 1} dùng lại tên gốc`);
+          } catch (e) { toast(e.message); }
+          fill(d, t);
+        };
+        inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.stopPropagation(); finish(false); } };
+        inp.onblur = () => finish(true);
+        name.replaceWith(inp); inp.focus(); inp.select();
+      };
+      li.append(el('span', 'num', i + 1), el('span', 'kind ' + s.kind, KIND[s.kind] || s.kind), name, el('span', 'screen', screenOf(s.fp.ctx)));
       ol.append(li);
     });
     const foot = el('div', 'detail-foot');
+    const ed = el('button', 'btn gray', 'Sửa tên tour');
+    ed.onclick = () => { pending = full; $('eName').value = full.name; $('eDesc').value = full.description; $('eErr').textContent = ''; show('editSheet'); };
     const dl = el('button', 'btn gray', 'Tải JSON');
     dl.onclick = () => { const a = el('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(full.steps, null, 2)], { type: 'application/json' })); a.download = t.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') + '.json'; a.click(); URL.revokeObjectURL(a.href); };
-    foot.append(dl); d.append(ol, foot);
+    foot.append(ed, dl); d.append(ol, foot);
   } catch (e) { d.replaceChildren(el('div', 'err', e.message)); }
 }
 
@@ -340,6 +378,14 @@ $('addForm').onsubmit = async e => {
     hide(); openId = t.id; await load(); toast(`Đã lưu «${t.name}»`);
   } catch (err) { $('fErr').textContent = err.message; }
   $('fSave').disabled = false;
+};
+$('editForm').onsubmit = async e => {
+  e.preventDefault(); $('eErr').textContent = ''; $('eSave').disabled = true;
+  try {
+    const t = await api('/api/tours/' + pending.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('eName').value, description: $('eDesc').value }) });
+    hide(); await load(); toast(`Đã lưu «${t.name}»`);
+  } catch (err) { $('eErr').textContent = err.message; }
+  $('eSave').disabled = false;
 };
 $('delGo').onclick = async () => {
   try { await api('/api/tours/' + pending.id, { method: 'DELETE' }); hide(); if (openId === pending.id) openId = null; await load(); toast(`Đã xoá «${pending.name}»`); }
