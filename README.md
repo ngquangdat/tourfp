@@ -8,12 +8,10 @@ Toàn bộ nằm trong một file: [`tourfp.js`](tourfp.js), không phụ thuộ
 
 ## Cài đặt
 
-Thư viện là một gói npm tên `tourfp`, chỉ gồm file `tourfp.js`, không có phụ thuộc và không cần bước build.
-
-Cài thẳng từ repo này (repo đang riêng tư, nên máy cài phải có quyền đọc repo):
+Thư viện là gói npm [`tourfp`](https://www.npmjs.com/package/tourfp), chỉ gồm file `tourfp.js`, không có phụ thuộc và không cần bước build.
 
 ```bash
-npm install github:ngquangdat/tour-guide
+npm install tourfp
 ```
 
 Rồi nạp vào app theo một trong hai cách:
@@ -28,6 +26,18 @@ Với Angular, nên khai báo trong `angular.json` để thư viện được n�
 "scripts": ["node_modules/tourfp/tourfp.js"]
 ```
 
+Hoặc không cần cài, nạp bằng một thẻ script qua CDN:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/tourfp@0.2.0/tourfp.js"></script>
+```
+
+Để dùng thử nhanh trên một trang đang mở (trang phải cho phép script từ `cdn.jsdelivr.net`), dán dòng này vào console:
+
+```js
+document.head.appendChild(Object.assign(document.createElement('script'), { src: 'https://cdn.jsdelivr.net/npm/tourfp@0.2.0/tourfp.js' }));
+```
+
 Tuỳ chọn, đặt trước khi nạp thư viện:
 
 ```js
@@ -35,15 +45,9 @@ window.TOURFP_SERVER = 'https://tour.example.com'; // máy chủ lưu tour, mặ
 window.TOURFP_PLAYER = true;                       // chỉ phát, không hiện thanh ghi tour
 ```
 
-Gói chưa được đưa lên npm. Khi đã phát hành, có thể cài bằng `npm install tourfp`, hoặc nạp bằng một thẻ script qua CDN:
-
-```html
-<script src="https://cdn.jsdelivr.net/npm/tourfp@0.2.0/tourfp.js"></script>
-```
-
 ## Dùng thử
 
-Dán nội dung `tourfp.js` vào console của trang, hoặc nạp bằng thẻ `<script>`. Một thanh điều khiển hiện ra ở góc dưới trái
+Sau khi nạp thư viện (xem Cài đặt), một thanh điều khiển hiện ra ở góc dưới trái
 (kéo đi chỗ khác được):
 
 - **● Ghi** — thao tác như bình thường, mỗi cú bấm thành một bước và vẫn chạy thật.
