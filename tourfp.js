@@ -1231,8 +1231,15 @@
       unpack(hm[1]).then(playPack).catch(() => picker());
       return;
     }
+    // Trang quản trị mở trang này để ghi tour (#tourfp=rec): hiện thẳng thanh ghi, không hỏi gì
+    if (/[#&]tourfp=rec\b/.test(location.hash || '') || /[#&]tourfp=rec\b/.test(carried)) {
+      carried = '';
+      try { history.replaceState(history.state, '', location.pathname + location.search); } catch (_) { /* không gỡ được thì thôi */ }
+      return openRecorder();
+    }
     picker();
   }
+  function openRecorder() { stopPlay(); panel.style.display = 'flex'; probe(); setInfo('Bấm ● Ghi để bắt đầu'); }
   function picker() {
     const old = document.getElementById('tourfp-pick'); if (old) old.remove();
     const d = mk('div', `position:fixed;left:12px;right:12px;bottom:${innerWidth < 768 ? 80 : 16}px;max-width:420px;margin:0 auto;z-index:${Z + 5};background:#16181d;color:#fff;border:1px solid #3a3f4b;border-radius:14px;padding:14px;box-sizing:border-box;box-shadow:0 10px 40px rgba(0,0,0,.5);${FONT}`);
@@ -1252,7 +1259,7 @@
       try { q = await unpack(ta.value); } catch (e) { err.textContent = 'Mã chạy thử không đúng (' + e.message + '). Hãy chép lại ở trang quản trị.'; return; }
       try { d.remove(); playPack(q); } catch (e) { document.documentElement.append(d); err.textContent = 'Không chạy được tour này (' + e.message + ').'; }
     };
-    bNew.onclick = () => { d.remove(); stopPlay(); panel.style.display = 'flex'; probe(); setInfo('Bấm ● Ghi để bắt đầu'); };
+    bNew.onclick = () => { d.remove(); openRecorder(); };
     bX.onclick = () => d.remove();
     document.documentElement.append(d);
   }

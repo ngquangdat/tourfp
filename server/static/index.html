@@ -509,7 +509,7 @@ async function pollRecord() {
   try { r = await api('/api/record'); } catch (_) { pollRecord.t = setTimeout(pollRecord, 3000); return; }
   $('fRec').disabled = r.open || (tests && (tests.running || tests.login_open || tests.play_open));
   $('fRecNote').textContent = r.open ? 'Chrome của máy chủ đang mở. Ghi xong bấm Gửi trên thanh TourFP.' : r.error ? 'Không mở được Chrome: ' + r.error
-    : recHint || 'Ghi trên máy này: sang trang đích, mở bookmark TourFP, chọn Ghi tour mới, ghi xong bấm Gửi để quay về đây.';
+    : recHint || 'Ghi trên máy này: sang trang đích, mở bookmark TourFP là có thanh ghi, ghi xong bấm Gửi để quay về đây.';
   if (r.steps && r.at > recSeen) {
     recSeen = recFrom = r.at;
     $('fJson').value = JSON.stringify(r.steps);
@@ -689,7 +689,8 @@ document.querySelectorAll('[data-bm]').forEach(b => b.onclick = () => { $('bmBac
 $('bmDone').onclick = () => $('bmSheet').classList.remove('on'); // chỉ đóng hộp này, hộp đang mở bên dưới vẫn giữ
 $('bmCopy').onclick = async () => toast(await copyText(bookmarklet()) ? 'Đã chép mã bookmark TourFP' : 'Trình duyệt không cho chép');
 // ghi trên máy này: sang trang đích, mở bookmark TourFP, ghi rồi bấm Gửi
-$('fRecHere').onclick = () => { if (!cfg.target) return toast('Chưa tải xong cấu hình'); location.href = cfg.target; };
+// (#tourfp=rec báo cho bookmark biết là vào để ghi: mở thẳng thanh ghi)
+$('fRecHere').onclick = () => { if (!cfg.target) return toast('Chưa tải xong cấu hình'); location.href = cfg.target.replace(/\/$/, '') + '/#tourfp=rec'; };
 // chạy thử trên máy này: để tour trong window.name rồi sang màn bắt đầu; bookmark TourFP sẽ đọc và phát
 let runFull = null, runCode = '';
 async function prepRun() {
