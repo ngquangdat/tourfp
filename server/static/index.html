@@ -300,7 +300,7 @@
     <div class="seg" id="runMode"><button type="button" data-mode="guide">Hướng dẫn từng bước</button><button type="button" data-mode="direct">Vào thẳng</button></div>
     <label>Dừng sau bước <input id="runTo" type="number" min="1"> <span id="runOf"></span></label>
   </div>
-  <div class="play-row"><div>Chạy trên máy này<small>Chép mã chạy thử và mở màn bắt đầu. Ở đó mở bookmark TourFP, dán mã, bấm Chạy tour · <button type="button" class="btn plain link" data-bm>Cài bookmark TourFP</button></small></div><button class="btn primary" id="runHere" type="button">Chép mã và mở trang</button></div>
+  <div class="play-row"><div>Chạy trên máy này<small>Mở màn bắt đầu rồi mở bookmark TourFP là tour chạy. Nếu được hỏi mã thì dán mã đã chép · <button type="button" class="btn plain link" data-bm>Cài bookmark TourFP</button></small></div><button class="btn primary" id="runHere" type="button">Chép mã và mở trang</button></div>
   <div class="play-row only-local"><div>Chạy bằng Chrome của máy chủ<small id="runWhat"></small></div><button class="btn gray" id="runPlay" type="button">Chạy</button></div>
   <p class="meta" id="runNote"></p>
   <p style="margin:0 0 14px;font-size:13px">Nếu trang đã cài sẵn thư viện, chỉ cần mở <code id="runParam" style="font:12px ui-monospace,Menlo,monospace;color:var(--code)"></code></p>
@@ -706,7 +706,9 @@ $('runHere').onclick = async () => {
   const ok = await copyText(runCode);
   window.name = 'tourfp-play:' + JSON.stringify({ steps: runFull.steps, start: runOpt });
   toast(ok ? 'Đã chép mã chạy thử · đang mở trang' : 'Không chép được mã chạy thử');
-  setTimeout(() => { location.href = pending.start_url; }, ok ? 700 : 2500);
+  // mã chạy thử đi kèm trong địa chỉ (#tourfp=…) để bookmark tự đọc; mã đã chép là đường dự phòng khi app xoá mất phần #
+  const url = pending.start_url + '#tourfp=' + runCode;
+  setTimeout(() => { location.href = url; }, ok ? 700 : 2500);
 };
 // vừa ghi xong trên trang đích và bấm Gửi: mở hộp Thêm tour với tour vừa ghi
 function takeDraft() {

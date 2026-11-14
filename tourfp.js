@@ -1186,21 +1186,35 @@
   // Bookmark chỉ nạp thư viện (window.TOURFP_BOOKMARK) rồi gọi hàm này; mọi xử lý nằm ở đây để sửa thư viện là bookmark
   // tự có bản mới, không phải tạo lại bookmark. Không dùng prompt()/alert(): trình duyệt do Playwright điều khiển tự đóng
   // các hộp đó ngay, và trên điện thoại chúng dễ bị đóng khi bàn phím bật lên. Thay bằng một khung ngay trong trang.
+  // Đọc mã chạy thử. Dễ tính với những gì bàn phím và bộ nhớ chép của điện thoại có thể làm với chuỗi dài: thêm khoảng trắng,
+  // xuống dòng, đổi "--" thành gạch dài, bỏ dấu "=" đệm. Lỗi thì ném ra lý do ngắn để hiện cho người dùng.
   async function unpack(v) {
-    v = v.trim();
-    if (v.startsWith('TFP1:')) {
-      const b = atob(v.slice(5).replace(/-/g, '+').replace(/_/g, '/'));
-      const u = Uint8Array.from(b, c => c.charCodeAt(0));
-      return new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+    v = String(v).replace(/[—―]/g, '--').replace(/[‐-–−]/g, '-').trim();
+    const at = v.indexOf('TFP1:');
+    if (at < 0) {
+      if (/^[[{]/.test(v)) { try { return JSON.parse(v); } catch (_) { throw new Error('JSON hỏng'); } }
+      throw new Error('không thấy đầu mã TFP1');
     }
-    return JSON.parse(v);
+    let b64 = v.slice(at + 5).replace(/[^A-Za-z0-9_\-+/]/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    let bin;
+    try { bin = atob(b64); } catch (_) { throw new Error('mã bị thiếu hoặc sai ký tự, dài ' + b64.length); }
+    const u = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) u[k] = bin.charCodeAt(k);
+    if (typeof DecompressionStream !== 'function') throw new Error('trình duyệt này quá cũ để đọc mã');
+    let text;
+    try { text = await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text(); }
+    catch (_) { throw new Error('mã bị cắt mất một phần, dài ' + b64.length); }
+    try { return JSON.parse(text); } catch (_) { throw new Error('nội dung mã hỏng'); }
   }
   function playPack(q) {
-    if (!q || !Array.isArray(q.steps) || !q.steps.length) throw new Error('bad');
+    if (!q || !Array.isArray(q.steps) || !q.steps.length) throw new Error('mã không chứa bước nào');
     panel.style.display = 'none';
     window.TourFP.load(q.steps);
     start(q.start || {});
   }
+  let carried = ''; // mã chạy thử đọc được từ địa chỉ trang lúc thư viện vừa nạp (app có thể xoá phần # sau đó)
+  try { carried = location.hash || ''; } catch (_) { /* không đọc được */ }
   function bookmark() {
     const admin = String(window.TOURFP_ADMIN || '').replace(/\/$/, '');
     // "Gửi" trên thanh ghi: chép tour (phòng khi trình duyệt xoá window.name) rồi quay về trang quản trị
@@ -1208,6 +1222,18 @@
     if (typeof window.__tourfpHost !== 'function') window.__tourfpHost = j => { copyNow(j); window.name = 'tourfp-draft:' + j; if (admin) location.href = admin + '/#add'; };
     const n = window.name || '';
     if (n.startsWith('tourfp-play:')) { window.name = ''; try { return playPack(JSON.parse(n.slice(12))); } catch (_) { /* hỏng thì hỏi mã */ } }
+    // Trang quản trị gắn mã chạy thử vào địa chỉ trang (#tourfp=TFP1:…): đọc từ đó, người dùng khỏi phải dán.
+    // Phần sau dấu # không gửi lên máy chủ của trang. Đọc xong thì gỡ khỏi địa chỉ.
+    const hm = /[#&]tourfp=(TFP1:[A-Za-z0-9_\-]+)/.exec(location.hash || '') || /[#&]tourfp=(TFP1:[A-Za-z0-9_\-]+)/.exec(carried);
+    if (hm) {
+      carried = '';
+      try { history.replaceState(history.state, '', location.pathname + location.search); } catch (_) { /* không gỡ được thì thôi */ }
+      unpack(hm[1]).then(playPack).catch(() => picker());
+      return;
+    }
+    picker();
+  }
+  function picker() {
     const old = document.getElementById('tourfp-pick'); if (old) old.remove();
     const d = mk('div', `position:fixed;left:12px;right:12px;bottom:${innerWidth < 768 ? 80 : 16}px;max-width:420px;margin:0 auto;z-index:${Z + 5};background:#16181d;color:#fff;border:1px solid #3a3f4b;border-radius:14px;padding:14px;box-sizing:border-box;box-shadow:0 10px 40px rgba(0,0,0,.5);${FONT}`);
     d.id = 'tourfp-pick';
@@ -1222,8 +1248,9 @@
     row.append(bGo, bNew, bX); d.append(title, ta, err, row);
     bGo.onclick = async () => {
       if (!ta.value.trim()) { err.textContent = 'Chưa dán mã chạy thử.'; return; }
-      try { const q = await unpack(ta.value); d.remove(); playPack(q); }
-      catch (_) { err.textContent = 'Mã chạy thử không đúng. Hãy chép lại ở trang quản trị.'; }
+      let q;
+      try { q = await unpack(ta.value); } catch (e) { err.textContent = 'Mã chạy thử không đúng (' + e.message + '). Hãy chép lại ở trang quản trị.'; return; }
+      try { d.remove(); playPack(q); } catch (e) { document.documentElement.append(d); err.textContent = 'Không chạy được tour này (' + e.message + ').'; }
     };
     bNew.onclick = () => { d.remove(); stopPlay(); panel.style.display = 'flex'; probe(); setInfo('Bấm ● Ghi để bắt đầu'); };
     bX.onclick = () => d.remove();
