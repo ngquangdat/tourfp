@@ -37,6 +37,7 @@ from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
 import ai
+import versions
 import assist
 import runner
 
@@ -169,7 +170,16 @@ def summary(row: sqlite3.Row) -> dict[str, Any]:
         "layout": row["layout"],
         "step_count": row["step_count"],
         "created_at": row["created_at"],
+        "app_version": versions.label(_first_app(row)),  # phiên bản trang đích lúc ghi tour
     }
+
+
+def _first_app(row: sqlite3.Row) -> dict[str, Any] | None:
+    try:
+        steps = json.loads(row["steps"])
+        return steps[0].get("app") if steps else None
+    except (ValueError, IndexError, AttributeError):
+        return None
 
 
 def get_row(conn: sqlite3.Connection, tour_id: str) -> sqlite3.Row:
@@ -360,7 +370,8 @@ def snippet(tour_id: str, mode: Literal["guide", "direct"] = "guide", to: int | 
 
 # ---------- kiểm thử tự động ----------
 # Trạng thái lần chạy đang diễn ra (chỉ một lần chạy tại một thời điểm, vì chúng dùng chung một hồ sơ trình duyệt).
-test_state: dict[str, Any] = {"running": False, "login_open": False, "record_open": False, "play_open": False, "current": "", "done": 0, "total": 0, "error": None}
+test_state: dict[str, Any] = {"running": False, "login_open": False, "record_open": False, "play_open": False, "current": "", "done": 0, "total": 0, "error": None,
+              "record_error": None, "play_error": None}  # lỗi riêng của cửa sổ ghi tour và chạy thử
 # tour vừa ghi trong Chrome do trang quản trị mở, chờ người dùng đặt tên và lưu ở hộp Thêm tour
 record_draft: dict[str, Any] = {"steps": None, "at": 0.0}
 
@@ -405,6 +416,10 @@ async def do_test_run(trigger: str) -> None:
     status, results = "done", []
     try:
         results = await runner.run_all(tours, TARGET, PROFILE, LIB, not show, progress)
+        # so phiên bản trang lúc ghi (bước đầu của tour) với lúc kiểm thử
+        recorded = {t["id"]: (t["steps"][0].get("app") if t["steps"] else None) for t in tours}
+        for r in results:
+            r["compat"] = versions.compat(recorded.get(r["tour_id"]), r.get("app"), r["status"])
         if any(r["status"] == "blocked" for r in results):
             status = "blocked"
         elif any(r["status"] == "need_login" for r in results):
@@ -446,11 +461,11 @@ def _receive_recording(data: str) -> None:
 async def do_record() -> None:
     if _browser_busy():
         return
-    test_state.update(record_open=True, error=None)
+    test_state.update(record_open=True, record_error=None)
     try:
         await runner.open_recorder(TARGET, PROFILE, LIB, _receive_recording)
     except Exception as e:
-        test_state["error"] = f"{type(e).__name__}: {e}"[:400]
+        test_state["record_error"] = f"{type(e).__name__}: {e}"[:400]
     finally:
         test_state["record_open"] = False
 
@@ -458,11 +473,11 @@ async def do_record() -> None:
 async def do_play(url: str, steps: list[dict[str, Any]], start: dict[str, Any], layout: str) -> None:
     if _browser_busy():
         return
-    test_state.update(play_open=True, error=None)
+    test_state.update(play_open=True, play_error=None)
     try:
         await runner.open_player(url, PROFILE, LIB, steps, start, layout)
     except Exception as e:
-        test_state["error"] = f"{type(e).__name__}: {e}"[:400]
+        test_state["play_error"] = f"{type(e).__name__}: {e}"[:400]
     finally:
         test_state["play_open"] = False
 
@@ -540,7 +555,7 @@ async def tour_play(tour_id: str, body: PlayIn) -> dict[str, Any]:
 
 @app.get("/api/play")
 async def play_status() -> dict[str, Any]:
-    return {"open": test_state["play_open"], "error": test_state["error"]}
+    return {"open": test_state["play_open"], "error": test_state["play_error"]}
 
 
 @app.post("/api/record", status_code=202)
@@ -555,7 +570,7 @@ async def record_open() -> dict[str, Any]:
 @app.get("/api/record")
 async def record_status() -> dict[str, Any]:
     steps = record_draft["steps"]
-    return {"open": test_state["record_open"], "error": test_state["error"], "steps": steps, "at": record_draft["at"],
+    return {"open": test_state["record_open"], "error": test_state["record_error"], "steps": steps, "at": record_draft["at"],
             "layout": ((steps[0].get("fp") or {}).get("ctx") or {}).get("layout", "") if steps else ""}
 
 

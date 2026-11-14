@@ -707,6 +707,8 @@
     if (pop) { for (const p of popups) if (p.node.contains(el) || pop.node.contains(p.node)) p.used = true; steps.push({ kind: 'hover', fp: pop.trig, note: '' }); }
     const step = { kind, fp, note: '' };
     steps.push(step);
+    // bước đầu của tour mang phiên bản trang lúc ghi
+    if (!steps[0].app) { const first = steps[0]; appVersion().then(a => { if (!first.app) first.app = a; }); }
     if (kind === 'click' && !acted) watchEffect(step, !isClickable(el));
     if (acted) setTimeout(() => { step.after = context(); }, 700); // thay đổi đã xảy ra rồi: chỉ cần ghi lại màn hình sau cú bấm
     flash('#3dd68c'); setInfo();
@@ -772,11 +774,37 @@
     if (isClick) { e.preventDefault(); flash('#fff'); }
   }
 
+  // ---------- phiên bản của trang đích ----------
+  // Tour gắn với phiên bản trang lúc ghi, để khi kiểm thử biết tour đang chạy trên bản mới hơn, cũ hơn hay cùng bản.
+  //  - version: số phiên bản do trang khai báo (window.TOURFP_APP_VERSION, hoặc thẻ meta app-version / version), nếu có;
+  //  - build: tên file chính của bản build Angular (main-XXXX.js), đổi mỗi lần triển khai;
+  //  - builtAt: thời điểm build ghi trong /ngsw.json (service worker của Angular), để so bản nào mới hơn;
+  //  - ng: phiên bản Angular.
+  let appVer = null;
+  function appVersion() {
+    if (appVer) return appVer;
+    appVer = (async () => {
+      const meta = n => { const m = document.querySelector(`meta[name="${n}"]`); return m ? (m.content || '').trim() : ''; };
+      const out = { version: String(window.TOURFP_APP_VERSION || meta('app-version') || meta('version') || meta('build-version') || '').slice(0, 40), build: '', builtAt: 0, ng: '' };
+      for (const e of document.querySelectorAll('script[src]')) {
+        const m = /\/(main)[.-]([A-Za-z0-9_]{6,})\.js(\?|$)/.exec(e.src);
+        if (m) { out.build = m[1] + '-' + m[2]; break; }
+      }
+      const ngEl = document.querySelector('[ng-version]');
+      if (ngEl) out.ng = ngEl.getAttribute('ng-version') || '';
+      try {
+        const r = await fetch('/ngsw.json', { cache: 'no-store' });
+        if (r.ok && /json/.test(r.headers.get('content-type') || '')) { const j = await r.json(); if (typeof j.timestamp === 'number') out.builtAt = j.timestamp; }
+      } catch (_) { /* trang không có service worker: chỉ còn tên bản build */ }
+      return out;
+    })();
+    return appVer;
+  }
   function record() {
     stopPlay(); recording = true; bRec.textContent = '■ Dừng ghi'; bRec.style.background = '#e5484d';
     box.style.borderColor = '#ffb020'; box.style.boxShadow = 'none';
     popups = []; hoverEl = null; popMo.observe(document.body, { childList: true, subtree: true });
-    probe();
+    probe(); appVersion();
     setInfo(); cancelAnimationFrame(raf); loop();
   }
   function stop() { recording = false; pending = null; popMo.disconnect(); bRec.textContent = '● Ghi'; bRec.style.background = '#2a2f3a'; target = null; box.style.display = 'none'; cancelAnimationFrame(raf); setInfo(); }
@@ -1153,6 +1181,7 @@
     capture, captureAt: el => capture(clickableRoot(el)), isClickable, save, run, start, direct, ask, locate,
     showPanel: (on = true) => { panel.style.display = on ? 'flex' : 'none'; }, find, score, context, clickables, record, stop, play, destroy, steps,
     apiStats: () => ({ responses: api.responses, values: api.set.size }),
+    appVersion,
     isApiValue,
     state: () => ({ recording, playing, steps: steps.length, target: target ? nameOf(capture(target)) : null, tip: tip.style.display === 'block' ? tipText.textContent : '' }),
     export: () => { scrub(); return JSON.stringify(steps, null, 2); },

@@ -22,6 +22,7 @@ import asyncio
 import re
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import Any, Callable
 
 VIEWPORT = {"desktop": {"width": 1280, "height": 800}, "mobile": {"width": 390, "height": 844}}
@@ -130,6 +131,10 @@ async def run_tour(page: Any, tour: dict[str, Any], target: str) -> dict[str, An
         await page.evaluate("steps => TourFP.load(steps)", steps)
     except Exception as e:
         return done("error", f"Thư viện không nạp được trên trang: {type(e).__name__}")
+    try:  # phiên bản trang lúc kiểm thử, để so với lúc ghi
+        out["app"] = await page.evaluate("() => TourFP.appVersion ? TourFP.appVersion() : null")
+    except Exception:
+        out["app"] = None
 
     warnings: list[str] = []
     i = 0
@@ -262,11 +267,24 @@ async def open_login(target: str, profile: Path, wait_seconds: int = 600) -> Non
                 pass
 
 
+def _window_gone(exc: BaseException, ctx: Any, closed: asyncio.Event) -> bool:
+    """Lỗi chỉ vì người dùng đã đóng cửa sổ Chrome (đóng sớm là bình thường, không phải lỗi)."""
+    return closed.is_set() or not ctx.pages or type(exc).__name__ == "TargetClosedError" or "has been closed" in str(exc)
+
+
+async def _wait_until_closed(ctx: Any, closed: asyncio.Event, wait_seconds: int) -> None:
+    t0 = time.time()
+    while not closed.is_set() and time.time() - t0 < wait_seconds:
+        await asyncio.sleep(1)
+        if not ctx.pages:  # người dùng đã đóng hết các tab
+            break
+
+
 async def open_recorder(target: str, profile: Path, lib: Path, on_save: Callable[[str], None], wait_seconds: int = 3 * 3600) -> None:
     """Mở Chrome (hồ sơ kiểm thử, đã đăng nhập) với thanh ghi tour nạp sẵn ở mọi trang.
 
     Người dùng tự ghi; bấm "Gửi" trên thanh ghi thì tour được chuyển về qua on_save(json), không cần mạng hay clipboard.
-    Trả về khi người dùng đóng hết các tab, hoặc hết thời gian chờ.
+    Trả về khi người dùng đóng hết các tab, hoặc hết thời gian chờ. Người dùng đóng cửa sổ sớm thì không coi là lỗi.
     """
     try:
         from playwright.async_api import async_playwright
@@ -276,15 +294,14 @@ async def open_recorder(target: str, profile: Path, lib: Path, on_save: Callable
         ctx = await _launch(pw, profile, headless=False, lib=lib, player=False, fixed_size=False)
         closed = asyncio.Event()
         ctx.on("close", lambda *_: closed.set())
-        await ctx.expose_binding("__tourfpHost", lambda _source, data: on_save(str(data)))
         try:
+            await ctx.expose_binding("__tourfpHost", lambda _source, data: on_save(str(data)))
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
             await page.goto(target, wait_until="domcontentloaded", timeout=30000)
-            t0 = time.time()
-            while not closed.is_set() and time.time() - t0 < wait_seconds:
-                await asyncio.sleep(1)
-                if not ctx.pages:  # người dùng đã đóng hết các tab
-                    break
+            await _wait_until_closed(ctx, closed, wait_seconds)
+        except Exception as e:
+            if not _window_gone(e, ctx, closed):
+                raise
         finally:
             try:
                 await ctx.close()
@@ -297,6 +314,8 @@ async def open_player(url: str, profile: Path, lib: Path, steps: list[dict[str, 
     """Mở Chrome (hồ sơ kiểm thử) tại màn bắt đầu của tour và phát tour ngay, để xem tour chạy mà không phải dán mã.
 
     start: {"mode": "guide" | "direct", "to": x}. Trả về khi người dùng đóng hết các tab, hoặc hết thời gian chờ.
+    Trang tự chuyển hướng hay tải lại ngay sau khi mở (đăng nhập, trang kiểm tra trình duyệt) thì chờ trang ổn định rồi phát;
+    người dùng đóng cửa sổ sớm thì không coi là lỗi.
     """
     try:
         from playwright.async_api import async_playwright
@@ -310,14 +329,28 @@ async def open_player(url: str, profile: Path, lib: Path, steps: list[dict[str, 
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
             await page.set_viewport_size(VIEWPORT.get(layout or "", VIEWPORT["desktop"]))
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_function("() => !!window.TourFP", timeout=15000)
-            await _settle(page, 4000)
-            await page.evaluate("([s, o]) => { TourFP.load(s); TourFP.start(o); }", [steps, start])
-            t0 = time.time()
-            while not closed.is_set() and time.time() - t0 < wait_seconds:
-                await asyncio.sleep(1)
-                if not ctx.pages:
-                    break
+            started, t0, want = False, time.time(), urlparse(url).path
+            while not started and not closed.is_set() and time.time() - t0 < 120:
+                try:
+                    if await _bot_challenge(page):  # trang kiểm tra trình duyệt: chờ người dùng qua bước đó, không tự vượt
+                        await asyncio.sleep(2)
+                        continue
+                    if urlparse(page.url).path != want and time.time() - t0 < 12:  # trang còn đang chuyển hướng: chờ về đúng màn bắt đầu
+                        await asyncio.sleep(0.5)
+                        continue
+                    await page.wait_for_function("() => !!window.TourFP", timeout=15000)
+                    await _settle(page, 4000)
+                    await page.evaluate("([s, o]) => { TourFP.load(s); TourFP.start(o); }", [steps, start])
+                    started = True
+                except Exception as e:
+                    if _window_gone(e, ctx, closed):
+                        return
+                    await asyncio.sleep(1)  # trang vừa chuyển hướng hoặc tải lại giữa chừng: thử lại trên trang mới
+                    page = ctx.pages[-1] if ctx.pages else page
+            await _wait_until_closed(ctx, closed, wait_seconds)
+        except Exception as e:
+            if not _window_gone(e, ctx, closed):
+                raise
         finally:
             try:
                 await ctx.close()

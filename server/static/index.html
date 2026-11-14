@@ -217,6 +217,15 @@
   body.remote .only-local { display: none !important; }
   #bmSheet ol small { white-space: normal; }
   @media (max-width: 560px) { .play-row { flex-wrap: wrap; } .play-row > .btn { width: 100%; } }
+  .t-ver { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
+  .t-ver .meta { white-space: normal; margin-top: 2px; }
+  .compat { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 6px; background: var(--surface-2); color: var(--muted); }
+  .compat.forward, .compat.backward, .compat.compatible { background: rgba(61,214,140,.16); color: var(--green); }
+  .compat.incompatible { background: rgba(229,72,77,.18); color: var(--bad); }
+  /* iPhone tự phóng to trang khi chạm vào ô nhập có chữ nhỏ hơn 16px: trên thiết bị cảm ứng mọi ô nhập dùng 16px */
+  @media (pointer: coarse), (max-width: 560px) {
+    input, textarea, select, .search, .field input, .field textarea, .ask-row input, .run-opts input, .t-sched input[type=time], input.target { font-size: 16px !important; }
+  }
 </style>
 </head>
 <body>
@@ -268,7 +277,7 @@
 </div>
 </main>
 
-<div class="scrim" id="addSheet"><form class="sheet" id="addForm" autocomplete="off">
+<div class="scrim" id="addSheet"><form class="sheet" id="addForm" autocomplete="off" novalidate>
   <h2>Thêm tour</h2>
   <p>Dán JSON của tour vừa ghi</p>
   <div class="rec-row">
@@ -343,7 +352,8 @@ async function api(path, opts) {
 // phần đặt trong «…» (tên tour) thành chữ in đậm, bỏ dấu ngoặc
 const rich = (node, text) => { node.replaceChildren(); String(text).split(/«([^»]*)»/).forEach((p, i) => { if (p) node.append(i % 2 ? el('b', '', p) : p); }); };
 const toast = t => { const e = $('toast'); rich(e, t); e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 2200); };
-const show = id => { $(id).classList.add('on'); const f = $(id).querySelector('input,textarea,button'); if (f) setTimeout(() => f.focus(), 50); };
+// mở hộp: chọn sẵn ô nhập đầu tiên (không chọn nút, để lỡ bấm Enter không làm gì ngoài ý muốn)
+const show = id => { $(id).classList.add('on'); const f = $(id).querySelector('input:not([type=checkbox]),textarea') || $(id).querySelector('button'); if (f) setTimeout(() => f.focus(), 50); };
 const hide = () => document.querySelectorAll('.scrim.on').forEach(s => s.classList.remove('on'));
 const when = t => new Date(t * 1000).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const autoName = s => (s.fp.segs && s.fp.segs[0]) || s.fp.label || s.fp.icon || s.fp.tag || '—'; // tên thư viện tự lấy từ giao diện
@@ -387,6 +397,7 @@ async function fill(d, t) {
     const full = await api('/api/tours/' + t.id);
     d.replaceChildren();
     if (full.description) d.append(el('p', 'desc', full.description));
+    if (full.app_version) d.append(el('p', 'desc', 'Ghi trên phiên bản trang: ' + full.app_version));
     const ol = el('ol', 'steps');
     full.steps.forEach((s, i) => {
       const li = el('li');
@@ -514,6 +525,8 @@ $('fRec').onclick = async () => {
 };
 $('addForm').onsubmit = async e => {
   e.preventDefault(); $('fErr').textContent = '';
+  if (!$('fName').value.trim()) { $('fErr').textContent = 'Hãy đặt tên tour.'; $('fName').focus(); return; }
+  if (!$('fJson').value.trim()) { $('fErr').textContent = 'Chưa có JSON của tour. Ghi tour hoặc dán JSON vào ô bên dưới.'; $('fJson').focus(); return; }
   let steps;
   try { steps = JSON.parse($('fJson').value); } catch (_) { $('fErr').textContent = 'JSON không hợp lệ. Hãy dán nguyên văn JSON đã chép khi lưu tour.'; return; }
   if (steps && !Array.isArray(steps) && Array.isArray(steps.steps)) steps = steps.steps;
@@ -542,6 +555,7 @@ $('delGo').onclick = async () => {
 // ---- kiểm thử tự động
 let tests = null, openTest = null;
 const T_LABEL = { pass: 'Đạt', warn: 'Lưu ý', fail: 'Lỗi', error: 'Lỗi chạy', need_login: 'Cần đăng nhập', blocked: 'Bị chặn' };
+const COMPAT = { same: 'Cùng phiên bản', forward: 'Tương thích xuôi', backward: 'Tương thích ngược', compatible: 'Tương thích', incompatible: 'Không tương thích', unknown: 'Chưa rõ phiên bản' };
 const R_LABEL = { done: 'Đã làm', found: 'Tìm thấy', skipped: 'Bỏ qua', fail: 'Lỗi', error: 'Lỗi', 'not-run': 'Chưa chạy' };
 function paintDots() {
   const by = {}; if (tests && tests.last) for (const r of tests.last.results) by[r.tour_id] = r;
@@ -571,11 +585,11 @@ function renderTests() {
   if (t.last && t.last.results.length) {
     const list = el('div', 'list');
     for (const r of t.last.results) {
-      const open = openTest === r.tour_id && r.steps.length > 0;
+      const canOpen = r.steps.length > 0 || !!r.compat, open = openTest === r.tour_id && canOpen;
       const row = el('div', 'row' + (open ? ' open' : ''));
       const head = el('div', 'row-head');
       const main = el('button', 'row-main'); main.type = 'button'; main.innerHTML = CHEV; main.setAttribute('aria-expanded', open);
-      if (!r.steps.length) { main.querySelector('.chev').style.visibility = 'hidden'; main.disabled = true; main.style.cursor = 'default'; }
+      if (!canOpen) { main.querySelector('.chev').style.visibility = 'hidden'; main.disabled = true; main.style.cursor = 'default'; }
       const text = el('div', 'row-text');
       text.append(el('div', 'name', r.name), el('div', 'meta t-msg', r.message));
       main.append(text);
@@ -584,13 +598,24 @@ function renderTests() {
       row.append(head);
       if (open) {
         const wrap = el('div', 'detail'), ol = el('ol', 'steps t-steps');
+        // tương thích phiên bản: chỉ hiện khi mở chi tiết
+        if (r.compat) {
+          const v = el('div', 't-ver');
+          // nhãn đã nói kết luận; phần giải thích sau dấu hai chấm (nếu có) mới thêm thông tin
+          const why = r.compat.text.includes(':') ? r.compat.text.replace(/^[^:]*:\s*/, '') : '';
+          v.append(el('span', 'compat ' + r.compat.kind, COMPAT[r.compat.kind] || r.compat.kind), why ? ' ' + why : '');
+          const ver = [r.compat.recorded ? 'Lúc ghi: ' + r.compat.recorded : '', r.compat.tested ? 'Lúc kiểm thử: ' + r.compat.tested : ''].filter(Boolean);
+          for (const x of ver) v.append(el('div', 'meta', x));
+          wrap.append(v);
+        }
         for (const st of r.steps) {
           const li = el('li');
           const detail = [st.score != null ? `khớp ${Math.round(st.score * 100)}%` : '', st.via || '', st.waited != null ? `chờ ${st.waited} ms` : '', st.note || ''].filter(Boolean).join(' · ');
           li.append(el('span', 'num', st.n), el('span', 'res ' + st.result, R_LABEL[st.result] || st.result), el('span', 'kind ' + st.kind, KIND[st.kind] || st.kind), el('span', 'target', st.name), el('span', 'why', detail));
           ol.append(li);
         }
-        wrap.append(ol); row.append(wrap);
+        if (r.steps.length) wrap.append(ol);
+        row.append(wrap);
       }
       list.append(row);
     }
