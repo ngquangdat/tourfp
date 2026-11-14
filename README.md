@@ -6,6 +6,41 @@ thay cho CSS selector, nên tour ít gãy khi app đổi class hay cấu trúc D
 
 Toàn bộ nằm trong một file: [`tourfp.js`](tourfp.js), không phụ thuộc thư viện nào.
 
+## Cài đặt
+
+Thư viện là một gói npm tên `tourfp`, chỉ gồm file `tourfp.js`, không có phụ thuộc và không cần bước build.
+
+Cài thẳng từ repo này (repo đang riêng tư, nên máy cài phải có quyền đọc repo):
+
+```bash
+npm install github:ngquangdat/tour-guide
+```
+
+Rồi nạp vào app theo một trong hai cách:
+
+```js
+import 'tourfp'; // tạo window.TourFP và hiện thanh ghi tour
+```
+
+Với Angular, nên khai báo trong `angular.json` để thư viện được nạp trước mã của app. Thứ tự này cần cho việc lọc chữ lấy từ API:
+
+```json
+"scripts": ["node_modules/tourfp/tourfp.js"]
+```
+
+Tuỳ chọn, đặt trước khi nạp thư viện:
+
+```js
+window.TOURFP_SERVER = 'https://tour.example.com'; // máy chủ lưu tour, mặc định http://localhost:8000
+window.TOURFP_PLAYER = true;                       // chỉ phát, không hiện thanh ghi tour
+```
+
+Gói chưa được đưa lên npm. Khi đã phát hành, có thể cài bằng `npm install tourfp`, hoặc nạp bằng một thẻ script qua CDN:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/tourfp@0.2.0/tourfp.js"></script>
+```
+
 ## Dùng thử
 
 Dán nội dung `tourfp.js` vào console của trang, hoặc nạp bằng thẻ `<script>`. Một thanh điều khiển hiện ra ở góc dưới trái

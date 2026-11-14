@@ -1,0 +1,26 @@
+{
+  "name": "tourfp",
+  "version": "0.2.0",
+  "description": "Ghi và phát tour hướng dẫn trên giao diện web bằng dấu vân tay phần tử, không cần sửa mã nguồn của app.",
+  "main": "tourfp.js",
+  "browser": "tourfp.js",
+  "unpkg": "tourfp.js",
+  "jsdelivr": "tourfp.js",
+  "sideEffects": true,
+  "files": [
+    "tourfp.js",
+    "README.md"
+  ],
+  "keywords": [
+    "tour",
+    "onboarding",
+    "walkthrough",
+    "product-tour",
+    "guide"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ngquangdat/tour-guide.git"
+  },
+  "license": "UNLICENSED"
+}

@@ -1,4 +1,4 @@
-/* TourFP 0.2 — bản thử: ghi tour theo thao tác và khớp phần tử bằng "dấu vân tay".
+/* TourFP 0.2.0 — bản thử: ghi tour theo thao tác và khớp phần tử bằng "dấu vân tay".
  * - Không dùng class/id. Không phụ thuộc thư viện.
  * - Chữ lấy từ API (tên, tên kế hoạch…) và chữ số bị loại khỏi dấu vân tay.
  *   Để lọc được, file này phải được nạp TRƯỚC khi app gọi API (đặt trong <head>).
@@ -8,6 +8,7 @@
  * API: TourFP.capture(el) | TourFP.find(fp) | record() | stop() | play() | export() | load(steps) | destroy()
  */
 (() => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return; // được import ở phía máy chủ (SSR, công cụ build): không làm gì
   if (window.TourFP) window.TourFP.destroy();
 
   const W = { label: 40, key: 25, attr: 12, icon: 20, tag: 8, role: 5, comp: 15, anchor: 15, pos: 5 };
