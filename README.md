@@ -29,13 +29,13 @@ Với Angular, nên khai báo trong `angular.json` để thư viện được n�
 Hoặc không cần cài, nạp bằng một thẻ script qua CDN:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/tourfp@0.3.4/tourfp.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tourfp@0.3.5/tourfp.js"></script>
 ```
 
 Để dùng thử nhanh trên một trang đang mở (trang phải cho phép script từ `cdn.jsdelivr.net`), dán dòng này vào console:
 
 ```js
-document.head.appendChild(Object.assign(document.createElement('script'), { src: 'https://cdn.jsdelivr.net/npm/tourfp@0.3.4/tourfp.js' }));
+document.head.appendChild(Object.assign(document.createElement('script'), { src: 'https://cdn.jsdelivr.net/npm/tourfp@0.3.5/tourfp.js' }));
 ```
 
 Tuỳ chọn, đặt trước khi nạp thư viện:
