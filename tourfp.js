@@ -1,11 +1,14 @@
-/* TourFP 0.2.0 — bản thử: ghi tour theo thao tác và khớp phần tử bằng "dấu vân tay".
+/* TourFP 0.3.0 — bản thử: ghi tour theo thao tác và khớp phần tử bằng "dấu vân tay".
  * - Không dùng class/id. Không phụ thuộc thư viện.
  * - Chữ lấy từ API (tên, tên kế hoạch…) và chữ số bị loại khỏi dấu vân tay.
  *   Để lọc được, file này phải được nạp TRƯỚC khi app gọi API (đặt trong <head>).
  * - Ghi: bấm bình thường = bước "thao tác" (cú bấm vẫn chạy, app chuyển màn như thật);
  *        Alt+bấm = bước "chỉ tô sáng" (cú bấm bị chặn).
  * - Phát: tô sáng đích, chờ người dùng tự bấm rồi mới sang bước sau; tự chờ màn mới hiện ra.
- * API: TourFP.capture(el) | TourFP.find(fp) | record() | stop() | play() | export() | load(steps) | destroy()
+ *   start({ mode: 'guide' | 'direct', to }) chạy tới bước thứ `to`: dẫn từng bước, hoặc thư viện tự đưa tới nơi.
+ * - Cấu hình (đặt trước khi nạp): window.TOURFP_SERVER = địa chỉ máy chủ lưu tour; window.TOURFP_PLAYER = true để ẩn thanh ghi.
+ * API: TourFP.record() | stop() | play() | start(opts) | load(steps) | export() | save() | run(id, opts) | ask(query)
+ *      | capture(el) | find(fp) | showPanel(on) | destroy()
  */
 (() => {
   if (typeof window === 'undefined' || typeof document === 'undefined') return; // được import ở phía máy chủ (SSR, công cụ build): không làm gì
