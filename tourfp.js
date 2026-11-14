@@ -855,6 +855,26 @@
     return !steps.some(s => s.fp.ctx.dialog === k || (s.after && s.after.dialog === k));
   };
   // Tạm ngừng dẫn cho tới khi người dùng đóng hộp thoại lạ, rồi phát tiếp từ đúng chỗ. Không chặn cú bấm nào, không tải lại trang.
+  // Tour ghi cho bố cục nào (điện thoại / máy tính): lấy theo bước đầu. Khác bố cục đang dùng thì các phần tử là của giao diện
+  // khác hẳn, không tìm thấy là chắc chắn: báo thẳng lý do thay vì "không tìm thấy phần tử".
+  const LAYOUT = { mobile: 'điện thoại', desktop: 'máy tính' };
+  function layoutClash() {
+    const want = steps.length && steps[0].fp && steps[0].fp.ctx && steps[0].fp.ctx.layout, have = context().layout;
+    return want && LAYOUT[want] && want !== have ? { want, have } : null;
+  }
+  // Báo sai bố cục và chờ: người dùng đổi kích thước cửa sổ (hoặc xoay máy) cho đúng thì tự chạy tiếp bằng `again`.
+  function holdForLayout(again) {
+    const c = layoutClash(), my = ++token;
+    playing = -1; target = null; box.style.display = 'none'; cancelAnimationFrame(raf);
+    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
+    // lời nhắn cho khách hàng: nói việc cần làm, không nói chuyện kỹ thuật
+    rich(tipText, c.want === 'mobile'
+      ? 'Hướng dẫn này dành cho phiên bản trên «điện thoại».\nBạn vui lòng mở trên điện thoại để xem tiếp nhé.'
+      : 'Hướng dẫn này dành cho phiên bản trên «máy tính».\nBạn vui lòng mở trên máy tính để xem tiếp nhé.');
+    tipMeta.textContent = ''; setBtns(null, 'Đóng');
+    setInfo('Sai bố cục: tour cho ' + LAYOUT[c.want]);
+    const timer = setInterval(() => { if (my !== token) return clearInterval(timer); if (!layoutClash()) { clearInterval(timer); again(); } }, 400);
+  }
   function holdForDialog() {
     const my = ++token;
     playing = -1; target = null; box.style.display = 'none'; cancelAnimationFrame(raf);
@@ -955,9 +975,11 @@
     setInfo('Đang ở màn cuối của tour');
   }
   async function play() {
+    directRun++; // lượt "vào thẳng" trước đó (nếu còn hẹn giờ tự đóng) không được đóng nhầm lượt phát này
     if (recording) stop();
     if (!steps.length) return setInfo('Chưa có bước nào');
     atEnd = false;
+    if (layoutClash()) return holdForLayout(play);
     // có hộp thoại lạ đang che màn hình: chờ người dùng đóng nó trước, không vội về màn bắt đầu hay tải lại trang
     if (foreignDialog()) return holdForDialog();
     const c = context(), n = steps.length - 1, last = steps[n];
@@ -990,6 +1012,7 @@
   async function direct() {
     if (recording) stop();
     if (!steps.length) return setInfo('Chưa có bước nào');
+    if (layoutClash()) return holdForLayout(direct);
     const my = ++directRun, alive = () => my === directRun;
     const n = steps.length, last = steps[n - 1];
     token++; playing = -1; target = null; atEnd = false; box.style.display = 'none'; cancelAnimationFrame(raf);
@@ -1052,6 +1075,7 @@
   async function locate(i, opts = {}) {
     const st = steps[i];
     if (!st) return { index: i, status: 'no-step' };
+    { const c = layoutClash(); if (c) return { index: i, kind: st.kind, name: st.title || nameOf(st.fp), status: 'wrong-layout', context: context(), expected: st.fp.ctx, layout: c }; }
     const t0 = performance.now();
     const r = await waitFind(st.fp, opts.timeout || 8000, steps.slice(i + 1, i + 3).map((x, k) => ({ fp: x.fp, idx: i + 1 + k })));
     const out = { index: i, kind: st.kind, name: st.title || nameOf(st.fp), waited: Math.round(performance.now() - t0), context: context(), expected: st.fp.ctx };

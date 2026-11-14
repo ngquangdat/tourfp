@@ -674,8 +674,10 @@ function bookmarklet() {
   const admin = cfg.public_url || location.origin, line = (cfg.version || '0').split('.').slice(0, 2).join('.');
   const lib = `https://cdn.jsdelivr.net/npm/tourfp@${line}/tourfp.js`;
   const code = `(()=>{window.TOURFP_ADMIN=${JSON.stringify(admin)};if(window.TourFP&&TourFP.bookmark)return TourFP.bookmark();`
-    + `window.TOURFP_PLAYER=true;window.TOURFP_BOOKMARK=true;const s=document.createElement('script');s.src=${JSON.stringify(lib)};`
-    + `s.onerror=()=>alert('Không nạp được TourFP');document.head.appendChild(s)})()`;
+    // ?t=<giờ hiện tại>: trình duyệt được phép giữ file tourfp@0.x tới 7 ngày; đổi tham số mỗi giờ để luôn nhận bản mới.
+    // Thư viện quá cũ (chưa có TourFP.bookmark) thì ít nhất cũng hiện thanh ghi.
+    + `window.TOURFP_PLAYER=true;window.TOURFP_BOOKMARK=true;const s=document.createElement('script');s.src=${JSON.stringify(lib)}+'?t='+Math.floor(Date.now()/36e5);`
+    + `s.onload=()=>{if(window.TourFP&&!TourFP.bookmark)TourFP.showPanel(true)};s.onerror=()=>alert('Không nạp được TourFP');document.head.appendChild(s)})()`;
   return 'javascript:' + encodeURIComponent(code);
 }
 async function copyText(text) {

@@ -157,6 +157,7 @@ async def run_tour(page: Any, tour: dict[str, Any], target: str) -> dict[str, An
             why = {
                 "not-found": "không tìm thấy đích trên màn hình",
                 "wrong-screen": "trang đang ở màn khác với lúc ghi",
+                "wrong-layout": "tour ghi cho bố cục khác (điện thoại / máy tính) với cửa sổ đang chạy",
                 "wrong-state": "màn hình đang ở trạng thái khác với lúc ghi (hộp thoại hoặc bước khác)",
                 "ambiguous": "có nhiều phần tử giống nhau, không xác định chắc được đích",
             }.get(str(status), str(status))
