@@ -92,6 +92,9 @@ Mở <http://localhost:8000>:
   nạp thư viện và phát tour ngay theo chế độ và bước dừng đã chọn. Đoạn mã chạy thử vẫn lấy được ở `/api/tours/{id}/snippet.js`.
   Khi chạy thử, thanh ghi tour không hiện (chế độ chỉ phát); gọi `TourFP.showPanel()` nếu cần hiện lại.
 - **Xoá**, **Tải JSON**, và xem danh sách bước của từng tour.
+- **Ẩn / Hiện** — tạm cất một tour mà không xoá: tour đang ẩn vẫn nằm trong danh sách quản trị và vẫn chạy thử được,
+  nhưng trợ lý tìm tour không đề xuất, trang đích mở `?tourfp=<mã>` không lấy được, và kiểm thử tự động bỏ qua
+  (trừ khi chọn **Chạy cả tour đang ẩn** ở màn kiểm thử).
 - **Sửa tên**: bấm vào tên một bước để đặt tên hiển thị cho bước đó (để trống thì dùng lại tên tự lấy từ giao diện); nút **Sửa tên tour** đổi tên và mô tả của tour. Tên đã đặt được dùng trong lời hướng dẫn khi phát và trong việc tìm tour của trợ lý.
 
 Cấu hình bằng biến môi trường: `TOURFP_TARGET` là trang web tour chạy trên đó (mặc định `https://tcinvest.tcbs.com.vn`),

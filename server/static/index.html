@@ -13,6 +13,7 @@
     --radius: 14px;
     --bar-bg: rgba(14,15,18,.72); --hover-2: #2e3037; --code: #c9cbd2; --bad: #ff8a8e; --bad-strong: #ff6b70; --tint-text: #ff7b7f;
     --note-text: #a8cdfa; --note-bad: #ff9a9d; --toast-bg: rgba(40,42,48,.92); --shadow: rgba(0,0,0,.6); --scrim: rgba(0,0,0,.5);
+    --switch-off: #3a3c43; --knob: #ffffff;
     color-scheme: dark;
   }
   /* chế độ sáng: theo hệ điều hành (khi chọn Tự động) hoặc khi chọn Sáng */
@@ -22,6 +23,7 @@
     --accent: #e5484d; --accent-press: #c93c41; --green: #1a8f4e; --amber: #a86a12; --blue: #0a66d6;
     --bar-bg: rgba(245,245,247,.78); --hover-2: #dedee4; --code: #3a3a40; --bad: #c9343a; --bad-strong: #c9343a; --tint-text: #c9343a;
     --note-text: #0f4f9e; --note-bad: #b02a30; --toast-bg: rgba(255,255,255,.94); --shadow: rgba(0,0,0,.18); --scrim: rgba(0,0,0,.28);
+    --switch-off: #d9d9de; --knob: #ffffff;
     color-scheme: light;
   } }
   :root[data-theme=light] {
@@ -30,6 +32,7 @@
     --accent: #e5484d; --accent-press: #c93c41; --green: #1a8f4e; --amber: #a86a12; --blue: #0a66d6;
     --bar-bg: rgba(245,245,247,.78); --hover-2: #dedee4; --code: #3a3a40; --bad: #c9343a; --bad-strong: #c9343a; --tint-text: #c9343a;
     --note-text: #0f4f9e; --note-bad: #b02a30; --toast-bg: rgba(255,255,255,.94); --shadow: rgba(0,0,0,.18); --scrim: rgba(0,0,0,.28);
+    --switch-off: #d9d9de; --knob: #ffffff;
     color-scheme: light;
   }
   .theme-btn { width: 34px; height: 34px; border-radius: 17px; display: grid; place-items: center; color: var(--muted); flex: none; }
@@ -226,6 +229,13 @@
   @media (pointer: coarse), (max-width: 560px) {
     input, textarea, select, .search, .field input, .field textarea, .ask-row input, .run-opts input, .t-sched input[type=time], input.target { font-size: 16px !important; }
   }
+  /* công tắc kiểu iOS: 44×26, núm tròn trượt; bật = xanh lá */
+  .switch { flex: none; width: 44px; height: 26px; border-radius: 13px; background: var(--switch-off); position: relative; transition: background .2s; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; background: var(--knob); box-shadow: 0 1px 3px var(--shadow); transition: transform .2s; }
+  .switch[aria-checked=true] { background: var(--green); }
+  .switch[aria-checked=true]::after { transform: translateX(18px); }
+  .switch[disabled] { opacity: .7; cursor: default; }
+  .row.off .name, .row.off .meta { opacity: .55; }
 </style>
 </head>
 <body>
@@ -257,6 +267,7 @@
     <div class="t-opts">
       <label class="t-sched"><input type="checkbox" id="tOn"> Chạy hằng ngày lúc <input type="time" id="tTime" value="08:30"></label>
       <label class="t-sched" title="Mở cửa sổ Chrome để xem bộ chạy thao tác từng bước. Tắt để chạy ẩn."><input type="checkbox" id="tShow"> Hiện cửa sổ Chrome khi chạy</label>
+      <label class="t-sched" title="Tour đang ẩn thường bị bỏ qua. Chọn để kiểm thử cả chúng."><input type="checkbox" id="tHidden"> Chạy cả tour đang ẩn</label>
     </div>
     <div class="t-row">
       <button class="btn primary" id="tRun" type="button">Chạy kiểm thử</button>
@@ -363,7 +374,8 @@ const screenOf = c => c.path + (c.dialog ? ' › ' + c.dialog.replace(/^app-/, '
 function render() {
   const q = $('q').value.trim().toLowerCase();
   const shown = tours.filter(t => !q || t.name.toLowerCase().includes(q) || t.start_path.toLowerCase().includes(q));
-  $('count').textContent = tours.length ? `${tours.length} tour đã lưu` : 'Chưa có tour nào';
+  const off = tours.filter(t => t.hidden).length;
+  $('count').textContent = tours.length ? `${tours.length} tour đã lưu` + (off ? ` · ${off} đang ẩn` : '') : 'Chưa có tour nào';
   const box = $('list'); box.replaceChildren();
   if (!shown.length) {
     const e = el('div', 'empty');
@@ -384,7 +396,18 @@ function render() {
     const acts = el('div', 'acts');
     const run = el('button', 'btn tint', 'Chạy thử'); run.onclick = () => openRun(t);
     const del = el('button', 'btn plain danger', 'Xoá'); del.onclick = () => { pending = t; rich($('delName'), `«${t.name}» với ${t.step_count} bước sẽ bị xoá khỏi máy chủ. Không hoàn tác được.`); show('delSheet'); };
-    acts.append(run, del); head.prepend(main); head.append(acts); row.append(head);
+    // công tắc hiện / ẩn (kiểu cài đặt của Apple): bật = tour đang hiện. Tour ẩn vẫn nằm ở đây nhưng không đưa cho khách hàng
+    // và không kiểm thử tự động.
+    const hide = el('button', 'switch'); hide.type = 'button'; hide.setAttribute('role', 'switch'); hide.setAttribute('aria-checked', String(!t.hidden));
+    hide.setAttribute('aria-label', `Hiện tour «${t.name}»`);
+    hide.title = t.hidden ? 'Đang ẩn: khách hàng không thấy, kiểm thử tự động bỏ qua. Bấm để hiện.' : 'Đang hiện. Bấm để ẩn tour.';
+    hide.onclick = async () => {
+      hide.disabled = true; hide.setAttribute('aria-checked', String(t.hidden)); // gạt ngay, lỗi thì gạt lại
+      try { await api('/api/tours/' + t.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hidden: !t.hidden }) }); await load(); toast(t.hidden ? `Đã hiện «${t.name}»` : `Đã ẩn «${t.name}»`); }
+      catch (e) { toast(e.message); hide.disabled = false; hide.setAttribute('aria-checked', String(!t.hidden)); }
+    };
+    if (t.hidden) row.classList.add('off');
+    acts.append(run, hide, del); head.prepend(main); head.append(acts); row.append(head);
     if (t.id === openId) { const d = el('div', 'detail'); d.append(el('div', 'meta', 'Đang tải các bước…')); row.append(d); fill(d, t); }
     list.append(row);
   }
@@ -567,6 +590,7 @@ function renderTests() {
   if (document.activeElement !== $('tTime')) $('tTime').value = t.schedule.time;
   $('tOn').checked = t.schedule.enabled;
   $('tShow').checked = t.show_browser !== false;
+  $('tHidden').checked = !!t.include_hidden;
   const c = t.last && t.last.counts;
   $('tStatus').textContent = !t.available ? 'Máy chủ chưa cài Playwright (pip install playwright)'
     : t.running ? `Đang chạy… ${t.done}/${t.total}${t.current ? ' · ' + t.current : ''}`
@@ -644,6 +668,7 @@ $('tRun').onclick = async () => { try { await api('/api/tests/run', { method: 'P
 $('tLogin').onclick = async () => { try { await api('/api/tests/login', { method: 'POST' }); } catch (e) { toast(e.message); } loadTests(); };
 const saveSched = async () => { try { await api('/api/tests/schedule', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: $('tOn').checked, time: $('tTime').value || '08:30' }) }); toast($('tOn').checked ? `Sẽ chạy hằng ngày lúc ${$('tTime').value}` : 'Đã tắt lịch chạy hằng ngày'); } catch (e) { toast(e.message); } loadTests(); };
 $('tOn').onchange = saveSched; $('tTime').onchange = saveSched;
+$('tHidden').onchange = async () => { try { await api('/api/tests/include-hidden', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ include: $('tHidden').checked }) }); toast($('tHidden').checked ? 'Lần chạy sau sẽ kiểm thử cả tour đang ẩn' : 'Lần chạy sau bỏ qua tour đang ẩn'); } catch (e) { toast(e.message); } loadTests(); };
 $('tShow').onchange = async () => { try { await api('/api/tests/show-browser', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ show: $('tShow').checked }) }); toast($('tShow').checked ? 'Lần chạy sau sẽ mở cửa sổ Chrome' : 'Lần chạy sau sẽ chạy ẩn'); } catch (e) { toast(e.message); } loadTests(); };
 
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = hide);

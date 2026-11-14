@@ -143,6 +143,9 @@ def db() -> sqlite3.Connection:
                created_at REAL NOT NULL
            )"""
     )
+    # tour đang ẩn: vẫn lưu và quản trị được, nhưng không đưa cho khách hàng (trợ lý, ?tourfp=) và không kiểm thử tự động
+    if "hidden" not in {r["name"] for r in conn.execute("PRAGMA table_info(tours)")}:
+        conn.execute("ALTER TABLE tours ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")
     conn.execute(
         """CREATE TABLE IF NOT EXISTS test_runs (
                id TEXT PRIMARY KEY, started_at REAL NOT NULL, finished_at REAL, trigger TEXT NOT NULL,
@@ -172,6 +175,7 @@ def summary(row: sqlite3.Row) -> dict[str, Any]:
         "layout": row["layout"],
         "step_count": row["step_count"],
         "created_at": row["created_at"],
+        "hidden": bool(row["hidden"]),
         "app_version": versions.label(_first_app(row)),  # phiên bản trang đích lúc ghi tour
     }
 
@@ -285,14 +289,17 @@ def create_tour(tour: TourIn) -> dict[str, Any]:
         time.time(),
     )
     with closing(db()) as conn, conn:
-        conn.execute("INSERT INTO tours VALUES (?, ?, ?, ?, ?, ?, ?, ?)", row)
+        conn.execute("INSERT INTO tours (id, name, description, start_path, layout, step_count, steps, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", row)
         return summary(get_row(conn, row[0]))
 
 
 @app.get("/api/tours/{tour_id}")
-def get_tour(tour_id: str) -> dict[str, Any]:
+def get_tour(tour_id: str, request: Request) -> dict[str, Any]:
     with closing(db()) as conn:
         row = get_row(conn, tour_id)
+    # thư viện trên trang đích (khách hàng mở ?tourfp=<mã>) không lấy được tour đang ẩn; trang quản trị thì vẫn xem được
+    if row["hidden"] and request.headers.get("origin") == TARGET:
+        raise HTTPException(404, "Không có tour này")
     return {**summary(row), "steps": json.loads(row["steps"])}
 
 
@@ -303,6 +310,7 @@ class TourPatch(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     # tên hiển thị cho từng bước, theo đúng thứ tự bước; chuỗi rỗng hoặc null = dùng lại tên tự lấy từ giao diện
     titles: list[str | None] | None = Field(default=None, max_length=MAX_STEPS)
+    hidden: bool | None = None  # ẩn / hiện tour
 
 
 @app.patch("/api/tours/{tour_id}")
@@ -314,6 +322,8 @@ def update_tour(tour_id: str, patch: TourPatch) -> dict[str, Any]:
             if not name:
                 raise HTTPException(422, "Tên tour không được để trống")
             conn.execute("UPDATE tours SET name = ? WHERE id = ?", (name, tour_id))
+        if patch.hidden is not None:
+            conn.execute("UPDATE tours SET hidden = ? WHERE id = ?", (int(patch.hidden), tour_id))
         if patch.description is not None:
             conn.execute("UPDATE tours SET description = ? WHERE id = ?", (patch.description.strip(), tour_id))
         if patch.titles is not None:
@@ -356,7 +366,7 @@ class AssistIn(BaseModel):
 def assist_route(body: AssistIn) -> dict[str, Any]:
     """Người dùng nói muốn tới màn hình nào; trả về tour phù hợp, bước cần dừng và hai cách đi (dẫn từng bước, vào thẳng)."""
     with closing(db()) as conn:
-        rows = conn.execute("SELECT * FROM tours ORDER BY created_at DESC").fetchall()
+        rows = conn.execute("SELECT * FROM tours WHERE hidden = 0 ORDER BY created_at DESC").fetchall()
     tours = [{**summary(r), "steps": json.loads(r["steps"])} for r in rows]
     ad, err = adapter()
     result = assist.find_tour(body.query, body.layout, tours, ad, TARGET)
@@ -405,7 +415,9 @@ def _spawn(coro: Any) -> None:
 
 
 def _all_tours(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    rows = conn.execute("SELECT * FROM tours ORDER BY created_at DESC").fetchall()
+    """Các tour được kiểm thử tự động: bỏ tour đang ẩn, trừ khi người quản trị chọn kiểm thử cả tour ẩn."""
+    where = "" if get_setting(conn, "test_include_hidden", False) else "WHERE hidden = 0 "
+    rows = conn.execute(f"SELECT * FROM tours {where}ORDER BY created_at DESC").fetchall()
     return [{**summary(r), "steps": json.loads(r["steps"])} for r in rows]
 
 
@@ -537,8 +549,9 @@ async def tests_overview() -> dict[str, Any]:
         runs = conn.execute("SELECT * FROM test_runs ORDER BY started_at DESC LIMIT 14").fetchall()
         sched = get_setting(conn, "test_schedule", {"enabled": False, "time": "08:30"})
         show = bool(get_setting(conn, "test_show_browser", SHOW_DEFAULT))
+        include_hidden = bool(get_setting(conn, "test_include_hidden", False))
     return {
-        "available": available, **test_state, "schedule": sched, "show_browser": show,
+        "available": available, **test_state, "schedule": sched, "show_browser": show, "include_hidden": include_hidden,
         "last": _run_view(runs[0], True) if runs else None,
         "history": [_run_view(r, False) for r in runs],
     }
@@ -614,6 +627,18 @@ async def tests_schedule(body: ScheduleIn) -> dict[str, Any]:
     with closing(db()) as conn, conn:
         set_setting(conn, "test_schedule", {"enabled": body.enabled, "time": body.time})
     return {"enabled": body.enabled, "time": body.time}
+
+
+class IncludeHiddenIn(BaseModel):
+    include: bool
+
+
+@app.put("/api/tests/include-hidden")
+async def tests_include_hidden(body: IncludeHiddenIn) -> dict[str, Any]:
+    """Bật/tắt việc kiểm thử cả các tour đang ẩn (áp dụng từ lần chạy sau, kể cả lịch hằng ngày)."""
+    with closing(db()) as conn, conn:
+        set_setting(conn, "test_include_hidden", body.include)
+    return {"include_hidden": body.include}
 
 
 class ShowBrowserIn(BaseModel):
