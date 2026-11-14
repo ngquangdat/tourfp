@@ -819,7 +819,13 @@
   }
 
   // hộp thoại đang che màn hình mà không bước nào của tour diễn ra trong nó (quảng cáo, thông báo bất chợt)
-  const foreignDialog = () => { const d = topDialog(); if (!d) return false; const k = dialogKey(d); return !steps.some(s => s.fp.ctx.dialog === k); };
+  // Hộp thoại "của tour": có bước diễn ra trong nó, hoặc nó là màn hình sau cú bấm của một bước (ví dụ bước cuối mở hộp thoại
+  // Nộp tiền: đó chính là màn đích của tour, không phải hộp thoại lạ).
+  const foreignDialog = () => {
+    const d = topDialog(); if (!d) return false;
+    const k = dialogKey(d);
+    return !steps.some(s => s.fp.ctx.dialog === k || (s.after && s.after.dialog === k));
+  };
   // Tạm ngừng dẫn cho tới khi người dùng đóng hộp thoại lạ, rồi phát tiếp từ đúng chỗ. Không chặn cú bấm nào, không tải lại trang.
   function holdForDialog() {
     const my = ++token;

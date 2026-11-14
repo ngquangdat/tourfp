@@ -206,12 +206,17 @@
     .t-steps .target { flex: 1; min-width: 0; }
     .t-steps .why { flex-basis: 100%; margin-left: 22px; text-align: left; }
   }
-  .rec-row { display: flex; align-items: center; gap: 10px; margin: -4px 0 16px; flex-wrap: wrap; }
-  .rec-row .meta { white-space: normal; }
+  .rec-row { display: flex; align-items: center; gap: 8px 10px; margin: -4px 0 14px; flex-wrap: wrap; }
   .play-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 0 0 10px; font-size: 14px; }
   .play-row > div { flex: 1; min-width: 0; }
+  .play-row + .play-row { border-top: 0; margin-top: -10px; } /* hai dòng liền nhau dùng chung một đường kẻ */
   .play-row small { display: block; color: var(--faint); font-size: 12px; }
   #runNote { white-space: normal; min-height: 18px; margin: 0 0 12px; }
+  .btn.link { color: var(--blue); padding: 0; height: auto; font-size: inherit; }
+  .rec-note { white-space: normal; margin: -8px 0 14px; }
+  body.remote .only-local { display: none !important; }
+  #bmSheet ol small { white-space: normal; }
+  @media (max-width: 560px) { .play-row { flex-wrap: wrap; } .play-row > .btn { width: 100%; } }
 </style>
 </head>
 <body>
@@ -266,7 +271,12 @@
 <div class="scrim" id="addSheet"><form class="sheet" id="addForm" autocomplete="off">
   <h2>Thêm tour</h2>
   <p>Dán JSON của tour vừa ghi</p>
-  <div class="rec-row"><button type="button" class="btn gray" id="fRec">Ghi tour bằng Chrome</button><span class="meta" id="fRecNote"></span></div>
+  <div class="rec-row">
+    <button type="button" class="btn gray" id="fRecHere">Ghi trên máy này</button>
+    <button type="button" class="btn gray only-local" id="fRec">Ghi bằng Chrome của máy chủ</button>
+    <button type="button" class="btn plain link" data-bm>Cài bookmark TourFP</button>
+  </div>
+  <p class="meta rec-note" id="fRecNote"></p>
   <label class="field"><span>Tên tour</span><input id="fName" maxlength="120" required placeholder="Ví dụ: Lập kế hoạch tài chính"></label>
   <label class="field"><span>Mô tả (không bắt buộc)</span><input id="fDesc" maxlength="500"></label>
   <label class="field"><span>JSON của tour</span><textarea id="fJson" required spellcheck="false" placeholder='[{"kind":"click","fp":{…}}, …]'></textarea></label>
@@ -281,7 +291,8 @@
     <div class="seg" id="runMode"><button type="button" data-mode="guide">Hướng dẫn từng bước</button><button type="button" data-mode="direct">Vào thẳng</button></div>
     <label>Dừng sau bước <input id="runTo" type="number" min="1"> <span id="runOf"></span></label>
   </div>
-  <div class="play-row"><div>Mở Chrome và chạy tour<small id="runWhat"></small></div><button class="btn primary" id="runPlay" type="button">Chạy trong Chrome</button></div>
+  <div class="play-row"><div>Chạy trên máy này<small>Chép mã chạy thử và mở màn bắt đầu. Ở đó mở bookmark TourFP, dán mã, OK · <button type="button" class="btn plain link" data-bm>Cài bookmark TourFP</button></small></div><button class="btn primary" id="runHere" type="button">Chép mã và mở trang</button></div>
+  <div class="play-row only-local"><div>Chạy bằng Chrome của máy chủ<small id="runWhat"></small></div><button class="btn gray" id="runPlay" type="button">Chạy</button></div>
   <p class="meta" id="runNote"></p>
   <p style="margin:0 0 14px;font-size:13px">Nếu trang đã cài sẵn thư viện, chỉ cần mở <code id="runParam" style="font:12px ui-monospace,Menlo,monospace;color:var(--code)"></code></p>
   <div class="sheet-foot"><button class="btn gray" data-close>Xong</button></div>
@@ -304,6 +315,17 @@
 
 <div class="toast" id="toast" role="status"></div>
 
+<div class="scrim" id="bmSheet"><div class="sheet" style="max-width:480px">
+  <h2>Bookmark TourFP</h2>
+  <p>Bookmark nạp TourFP vào trang đang mở, để ghi và chạy thử tour ngay trên máy này. Tạo một lần.</p>
+  <ol>
+    <li><div>Chép mã của bookmark</div><button class="btn primary" id="bmCopy" type="button">Chép mã</button></li>
+    <li><div>Tạo bookmark cho trang bất kỳ<small>Máy tính: ⌘D (Mac) hoặc Ctrl+D (Windows) · Điện thoại: menu ⋮ → ☆</small></div></li>
+    <li><div>Sửa bookmark vừa tạo: đặt tên <b>TourFP</b>, xoá hết ô địa chỉ (URL) rồi dán mã vừa chép, lưu lại</div></li>
+    <li><div>Khi dùng: đang ở trang TCInvest thì mở bookmark TourFP<small>Android Chrome: gõ TourFP vào thanh địa chỉ rồi chọn dòng bookmark</small></div></li>
+  </ol>
+  <div class="sheet-foot"><button class="btn gray" id="bmDone" type="button">Xong</button></div>
+</div></div>
 <script>
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -408,6 +430,7 @@ function syncRun() {
   $('runTo').value = runOpt.to; $('runTo').max = t.step_count; $('runOf').textContent = `/ ${t.step_count}`;
   $('runWhat').textContent = runOpt.mode === 'direct' ? 'Thư viện tự làm các bước và đưa tới nơi' : 'Thư viện chỉ từng thao tác, người dùng tự bấm';
   $('runParam').textContent = `${t.start_url}?tourfp=${t.id}&${runQuery()}`;
+  prepRun();
 }
 function openRun(t, opt) {
   pending = t;
@@ -465,16 +488,17 @@ $('runPlay').onclick = async () => {
   setTimeout(pollPlay, 600);
 };
 
-$('add').onclick = () => { $('addForm').reset(); $('fErr').textContent = ''; recSeen = 0; show('addSheet'); pollRecord(); };
+$('add').onclick = () => { $('addForm').reset(); $('fErr').textContent = ''; recSeen = 0; recHint = ''; show('addSheet'); pollRecord(); };
 // Ghi tour bằng Chrome: máy chủ mở Chrome (hồ sơ kiểm thử) có sẵn thanh ghi. Bấm "Gửi" trên thanh ghi thì tour về đây.
-let recSeen = 0, recFrom = 0;
+let recSeen = 0, recFrom = 0, recHint = '';
 async function pollRecord() {
   clearTimeout(pollRecord.t);
   if (!$('addSheet').classList.contains('on')) return;
   let r;
   try { r = await api('/api/record'); } catch (_) { pollRecord.t = setTimeout(pollRecord, 3000); return; }
   $('fRec').disabled = r.open || (tests && (tests.running || tests.login_open || tests.play_open));
-  $('fRecNote').textContent = r.open ? 'Chrome đang mở. Ghi xong bấm Gửi trên thanh TourFP.' : r.error ? 'Không mở được Chrome: ' + r.error : '';
+  $('fRecNote').textContent = r.open ? 'Chrome của máy chủ đang mở. Ghi xong bấm Gửi trên thanh TourFP.' : r.error ? 'Không mở được Chrome: ' + r.error
+    : recHint || 'Ghi trên máy này: sang trang đích, mở bookmark TourFP, để trống ô mã rồi OK, ghi xong bấm Gửi để quay về đây.';
   if (r.steps && r.at > recSeen) {
     recSeen = recFrom = r.at;
     $('fJson').value = JSON.stringify(r.steps);
@@ -603,7 +627,83 @@ addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
 $('q').oninput = render;
 
 async function load() { try { tours = await api('/api/tours'); } catch (e) { tours = []; toast(e.message); } render(); paintDots(); }
-api('/api/config').then(c => { $('target').textContent = new URL(c.target).host; $('aiInfo').textContent = c.ai === 'off' ? 'AI đang tắt, tìm bằng từ khoá' : `AI: ${c.ai} · ${c.ai_model}`; if (c.ai_error) $('aiInfo').textContent = 'Cấu hình AI lỗi: ' + c.ai_error; }).catch(() => {});
+api('/api/config').then(c => { cfg = c; $('target').textContent = new URL(c.target).host; $('aiInfo').textContent = c.ai === 'off' ? 'AI đang tắt, tìm bằng từ khoá' : `AI: ${c.ai} · ${c.ai_model}`; if (c.ai_error) $('aiInfo').textContent = 'Cấu hình AI lỗi: ' + c.ai_error; }).catch(() => {});
+// ---------- dùng trên máy đang truy cập (điện thoại, máy khác) ----------
+// Trang quản trị mở từ xa thì các nút "Chrome của máy chủ" bị ẩn: chúng mở Chrome trên máy chạy máy chủ, không phải máy này.
+const LOCAL = ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(location.hostname);
+document.body.classList.toggle('remote', !LOCAL);
+let cfg = { target: '', version: '' };
+// Bookmark TourFP (bookmarklet). Bấm trên trang đích thì nó nạp thư viện từ CDN (trang đích chỉ cho nạp mã từ đó).
+//  - Có tour chờ phát trong window.name (do nút "Mở trang" của hộp Chạy thử đặt): phát tour đó.
+//  - Không có: hiện thanh ghi. Bấm "Gửi" thì quay về trang quản trị, mang tour theo trong window.name.
+// Chở tour giữa trang quản trị và trang đích: trang đích gửi header COOP nên trình duyệt xoá window.name khi chuyển trang,
+// và trang đích cũng không cho gọi mạng ra ngoài. Cách chắc chắn là chép/dán: mã chạy thử là JSON nén gzip, mã hoá base64url.
+async function packTour(obj) {
+  const gz = await new Response(new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+  let bin = ''; for (const b of new Uint8Array(gz)) bin += String.fromCharCode(b);
+  return 'TFP1:' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+// Bookmark TourFP. Mở trên trang đích:
+//  - lấy tour cần phát: thử window.name trước (trình duyệt còn giữ thì khỏi dán), không có thì hỏi để dán mã chạy thử;
+//  - có tour thì phát, để trống thì hiện thanh ghi. Bấm "Gửi" trên thanh ghi: chép tour rồi quay về trang quản trị.
+function bookmarklet() {
+  const admin = location.origin, lib = `https://cdn.jsdelivr.net/npm/tourfp@${cfg.version || '0'}/tourfp.js`;
+  const code = `(async()=>{const A=${JSON.stringify(admin)};let p=null;const n=window.name||'';`
+    + `if(n.startsWith('tourfp-play:')){try{p=JSON.parse(n.slice(12))}catch(e){}window.name=''}`
+    + `if(!p){const t=prompt('TourFP: dán mã chạy thử để chạy tour.\\nĐể trống rồi bấm OK để ghi tour mới.','');if(t===null)return;const v=t.trim();`
+    + `if(v){try{if(v.startsWith('TFP1:')){const b=atob(v.slice(5).replace(/-/g,'+').replace(/_/g,'/'));const u=Uint8Array.from(b,c=>c.charCodeAt(0));`
+    + `p=await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).json()}else p=JSON.parse(v)}catch(e){return alert('Mã chạy thử không đúng. Hãy chép lại ở trang quản trị.')}}}`
+    + `window.__tourfpHost=j=>{const a=document.createElement('textarea');a.value=j;a.style.cssText='position:fixed;opacity:0';document.body.append(a);a.select();try{document.execCommand('copy')}catch(e){}a.remove();window.name='tourfp-draft:'+j;location.href=A+'/#add'};`
+    + `const go=()=>{if(p){TourFP.showPanel(false);TourFP.load(p.steps);TourFP.start(p.start)}else TourFP.showPanel(true)};`
+    + `if(window.TourFP)return go();if(p)window.TOURFP_PLAYER=true;const s=document.createElement('script');s.src=${JSON.stringify(lib)};s.onload=go;s.onerror=()=>alert('Không nạp được TourFP');document.head.appendChild(s)})()`;
+  return 'javascript:' + encodeURIComponent(code);
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
+  const ta = el('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.append(ta); ta.select();
+  const ok = document.execCommand('copy'); ta.remove(); return ok;
+}
+document.querySelectorAll('[data-bm]').forEach(b => b.onclick = () => show('bmSheet'));
+$('bmDone').onclick = () => $('bmSheet').classList.remove('on'); // chỉ đóng hộp này, hộp đang mở bên dưới vẫn giữ
+$('bmCopy').onclick = async () => toast(await copyText(bookmarklet()) ? 'Đã chép mã bookmark TourFP' : 'Trình duyệt không cho chép');
+// ghi trên máy này: sang trang đích, mở bookmark TourFP, ghi rồi bấm Gửi
+$('fRecHere').onclick = () => { if (!cfg.target) return toast('Chưa tải xong cấu hình'); location.href = cfg.target; };
+// chạy thử trên máy này: để tour trong window.name rồi sang màn bắt đầu; bookmark TourFP sẽ đọc và phát
+let runFull = null, runCode = '';
+async function prepRun() {
+  const t = pending; runCode = '';
+  try {
+    if (!runFull || runFull.id !== t.id) runFull = await api('/api/tours/' + t.id);
+    const code = await packTour({ steps: runFull.steps, start: { ...runOpt } });
+    if (pending === t) runCode = code;
+  } catch (e) { toast(e.message); }
+}
+$('runHere').onclick = async () => {
+  if (!runCode) await prepRun();
+  if (!runCode) return;
+  const ok = await copyText(runCode);
+  window.name = 'tourfp-play:' + JSON.stringify({ steps: runFull.steps, start: runOpt });
+  toast(ok ? 'Đã chép mã chạy thử · đang mở trang' : 'Không chép được mã chạy thử');
+  setTimeout(() => { location.href = pending.start_url; }, ok ? 700 : 2500);
+};
+// vừa ghi xong trên trang đích và bấm Gửi: mở hộp Thêm tour với tour vừa ghi
+function takeDraft() {
+  const n = window.name || '', fromName = n.startsWith('tourfp-draft:');
+  if (!fromName && location.hash !== '#add') return;
+  if (fromName) window.name = '';
+  if (location.hash === '#add') history.replaceState('', '', location.pathname + location.search);
+  $('addForm').reset(); $('fErr').textContent = ''; recSeen = Date.now() / 1000; show('addSheet'); pollRecord();
+  const fill = steps => { $('fJson').value = JSON.stringify(steps); recHint = ''; $('fRecNote').textContent = ''; toast(`Đã nhận tour vừa ghi · ${steps.length} bước`); };
+  let steps = null;
+  if (fromName) { try { steps = JSON.parse(n.slice(13)); } catch (_) { /* hỏng thì dán tay */ } }
+  if (Array.isArray(steps) && steps.length) return fill(steps);
+  // trình duyệt đã xoá window.name: tour vừa ghi đã được chép, thử đọc bộ nhớ chép (trình duyệt có thể hỏi quyền), không được thì dán tay
+  recHint = 'Tour vừa ghi đã được chép: chạm giữ ô JSON của tour rồi chọn Dán.'; $('fRecNote').textContent = recHint;
+  if (navigator.clipboard && navigator.clipboard.readText) navigator.clipboard.readText().then(t => {
+    try { const v = JSON.parse(t); if (Array.isArray(v) && v.length) fill(v); } catch (_) { /* không phải tour */ }
+  }).catch(() => {});
+}
+
 // chế độ sáng/tối: Tự động (theo hệ điều hành) → Sáng → Tối; nhớ trong trình duyệt
 const THEME_KEY = 'tourfp-admin-theme';
 const THEME_ICON = {
@@ -639,6 +739,7 @@ function setView() {
 $('testsTab').onclick = () => { if (location.hash === '#tests') history.pushState('', '', location.pathname + location.search); else location.hash = 'tests'; setView(); };
 addEventListener('hashchange', setView); addEventListener('popstate', setView);
 setView();
+takeDraft();
 load();
 loadTests();
 </script>

@@ -8,14 +8,21 @@ Cấu hình qua biến môi trường:
   TOURFP_TEST_HEADLESS  mặc định ban đầu cho việc hiện cửa sổ Chrome khi kiểm thử: 1 chạy ẩn, 0 hiện cửa sổ (mặc định: hiện).
                         Sau đó chỉnh bằng ô "Hiện cửa sổ Chrome" trên trang quản trị.
 
-Không có đăng nhập: đây là công cụ nội bộ, chỉ nên nghe trên 127.0.0.1.
+  TOURFP_ADMIN_PASSWORD mật khẩu khi vào trang từ xa (qua tên miền, Cloudflare Tunnel…). Không đặt thì đọc file
+                        <TOURFP_DATA>/admin-password.txt. Tên đăng nhập: admin.
+
+Đăng nhập: truy cập thẳng trên máy (localhost) thì không hỏi. Truy cập từ xa (có header của Cloudflare, hoặc tên miền
+khác localhost) thì phải nhập mật khẩu; chưa đặt mật khẩu thì từ chối hẳn. Máy chủ chỉ nên nghe trên 127.0.0.1.
 """
 from __future__ import annotations
 
 import asyncio
+import base64
+import secrets
 import datetime
 import inspect
 import json
+import re
 import os
 import sqlite3
 import time
@@ -64,6 +71,47 @@ _native_pna = "allow_private_network" in inspect.signature(CORSMiddleware.__init
 if _native_pna:
     _cors["allow_private_network"] = True
 app.add_middleware(CORSMiddleware, **_cors)
+
+# ---------- đăng nhập khi truy cập từ xa ----------
+# Trang quản trị điều khiển được Chrome đã đăng nhập tài khoản thật trên máy này, nên ai vào từ xa cũng phải có mật khẩu.
+_LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
+
+
+def _admin_password() -> str:
+    env = os.environ.get("TOURFP_ADMIN_PASSWORD", "").strip()
+    if env:
+        return env
+    try:
+        return (DATA / "admin-password.txt").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _is_remote(request: Request) -> bool:
+    if any(h in request.headers for h in ("cf-ray", "cf-connecting-ip", "x-forwarded-for")):
+        return True  # đi qua Cloudflare hoặc một proxy: coi là từ xa
+    host = (request.headers.get("host") or "").rsplit(":", 1)[0].lower()
+    return host not in _LOCAL_HOSTS
+
+
+@app.middleware("http")
+async def remote_login(request: Request, call_next):
+    if not _is_remote(request):
+        return await call_next(request)
+    password = _admin_password()
+    if not password:
+        return Response("Chưa đặt mật khẩu quản trị nên không cho truy cập từ xa.", status_code=403, media_type="text/plain; charset=utf-8")
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Basic "):
+        try:
+            user, _, given = base64.b64decode(auth[6:]).decode("utf-8").partition(":")
+        except (ValueError, UnicodeDecodeError):
+            user, given = "", ""
+        if secrets.compare_digest(user.encode(), b"admin") and secrets.compare_digest(given.encode(), password.encode()):
+            return await call_next(request)
+    return Response("Cần đăng nhập", status_code=401, media_type="text/plain; charset=utf-8",
+                    headers={"WWW-Authenticate": 'Basic realm="TourFP", charset="UTF-8"'})
+
 
 if not _native_pna:  # Starlette cũ chưa có tuỳ chọn trên: tự thêm header
 
@@ -182,7 +230,9 @@ def adapter() -> tuple[ai.Adapter | None, str | None]:
 @app.get("/api/config")
 def config() -> dict[str, Any]:
     ad, err = adapter()
-    return {"target": TARGET, "ai": ad.name if ad else "off", "ai_model": os.environ.get("TOURFP_AI_MODEL", "") if ad else "", "ai_error": err}
+    m = re.search(r"TourFP (\d+\.\d+\.\d+)", LIB.read_text(encoding="utf-8")[:200])
+    # version: bản thư viện, để nút TourFP (dấu trang) nạp đúng bản đó từ CDN
+    return {"target": TARGET, "version": m.group(1) if m else "", "ai": ad.name if ad else "off", "ai_model": os.environ.get("TOURFP_AI_MODEL", "") if ad else "", "ai_error": err}
 
 
 @app.get("/api/tours")
