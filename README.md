@@ -105,6 +105,26 @@ Khi thư viện được cài sẵn trong app và app cho phép gọi tới máy
 (mặc định `http://localhost:8000`). Trang TCInvest hiện chặn mọi kết nối ra ngoài danh sách cho phép của nó, nên với trang đó
 phải dùng cách dán JSON và dán mã chạy thử.
 
+### Truy cập từ xa
+
+Vào thẳng trên máy (`localhost`) thì không hỏi mật khẩu. Vào qua tên miền (Cloudflare Tunnel, proxy…) thì phải đăng nhập
+bằng HTTP Basic: tên `admin`, mật khẩu đặt trong `TOURFP_ADMIN_PASSWORD` hoặc file `server/data/admin-password.txt`.
+
+Riêng phần chỉ đọc mở cho khách, không cần mật khẩu:
+
+| Đường dẫn | Việc làm |
+|---|---|
+| `POST /api/assist` | hỏi trợ lý tìm tour |
+| `GET /api/tours/<mã>` | tải một tour theo mã |
+| `GET /api/tours/<mã>/snippet.js` | mã chạy tour (thư viện kèm tour) |
+| `GET /tourfp.js` | thư viện |
+
+Trình duyệt chỉ cho trang đích và các trang trong `TOURFP_CORS_ORIGINS` (cách nhau bằng dấu phẩy, mặc định
+`http://localhost:4200`) gọi các đường dẫn này.
+
+Khách không xem được danh sách tour và không thấy tour đang ẩn. Thêm, sửa, xoá, ghi, chạy thử và kiểm thử vẫn cần mật
+khẩu. Mỗi địa chỉ khách gọi tối đa 60 lần mỗi phút (đổi bằng `TOURFP_GUEST_PER_MINUTE`); quá thì nhận mã 429.
+
 ### Trợ lý tìm tour
 
 Người dùng nói muốn tới màn hình nào, máy chủ tìm tour phù hợp trong danh sách và trả về hai cách đi:

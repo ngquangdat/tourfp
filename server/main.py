@@ -10,11 +10,15 @@ Cấu hình qua biến môi trường:
 
   TOURFP_PUBLIC_URL     địa chỉ công khai của trang quản trị (ví dụ https://tourfp.example.com), để bookmark TourFP quay về
                         đúng chỗ sau khi bấm Gửi. Không đặt thì lấy theo tên miền đang dùng để vào trang.
+  TOURFP_CORS_ORIGINS   các trang khác (ngoài trang đích) được gọi API từ trình duyệt, cách nhau bằng dấu phẩy
+                        (mặc định http://localhost:4200).
   TOURFP_ADMIN_PASSWORD mật khẩu khi vào trang từ xa (qua tên miền, Cloudflare Tunnel…). Không đặt thì đọc file
                         <TOURFP_DATA>/admin-password.txt. Tên đăng nhập: admin.
 
 Đăng nhập: truy cập thẳng trên máy (localhost) thì không hỏi. Truy cập từ xa (có header của Cloudflare, hoặc tên miền
 khác localhost) thì phải nhập mật khẩu; chưa đặt mật khẩu thì từ chối hẳn. Máy chủ chỉ nên nghe trên 127.0.0.1.
+Riêng phần chỉ đọc mở cho khách, không cần mật khẩu: POST /api/assist, GET /api/tours/<mã> (tour đang hiện),
+GET /api/tours/<mã>/snippet.js, GET /tourfp.js; mỗi địa chỉ tối đa TOURFP_GUEST_PER_MINUTE lần mỗi phút (mặc định 60).
 """
 from __future__ import annotations
 
@@ -29,6 +33,7 @@ import os
 import sqlite3
 import time
 import uuid
+from collections import deque
 from contextlib import asynccontextmanager, closing
 from pathlib import Path
 from typing import Any, Literal
@@ -69,7 +74,9 @@ app = FastAPI(title="TourFP admin", docs_url=None, redoc_url=None, lifespan=life
 
 # Thư viện chạy trên trang đích gọi sang đây để lưu và tải tour.
 # Chrome còn hỏi thêm quyền khi một trang công khai gọi vào máy cục bộ ("private network"); chỉ đồng ý cho trang đích.
-_cors: dict[str, Any] = {"allow_origins": [TARGET], "allow_methods": ["GET", "POST"], "allow_headers": ["Content-Type"]}
+# TOURFP_CORS_ORIGINS: các trang khác cũng được gọi (cách nhau bằng dấu phẩy), mặc định là ứng dụng Angular đang phát triển trên máy.
+ORIGINS = [TARGET] + [o.strip().rstrip("/") for o in os.environ.get("TOURFP_CORS_ORIGINS", "http://localhost:4200").split(",") if o.strip()]
+_cors: dict[str, Any] = {"allow_origins": ORIGINS, "allow_methods": ["GET", "POST"], "allow_headers": ["Content-Type"]}
 _native_pna = "allow_private_network" in inspect.signature(CORSMiddleware.__init__).parameters
 if _native_pna:
     _cors["allow_private_network"] = True
@@ -97,21 +104,73 @@ def _is_remote(request: Request) -> bool:
     return host not in _LOCAL_HOSTS
 
 
+# Phần chỉ đọc mở cho khách (không cần mật khẩu): hỏi trợ lý tìm tour, tải một tour đang hiện theo mã, tải thư viện.
+# Xem danh sách, thêm, sửa, xoá, ghi, chạy thử, kiểm thử vẫn cần mật khẩu.
+_GUEST = [
+    ("POST", re.compile(r"/api/assist")),
+    ("GET", re.compile(r"/api/tours/[\w-]+")),
+    ("GET", re.compile(r"/api/tours/[\w-]+/snippet\.js")),
+    ("GET", re.compile(r"/tourfp\.js")),
+]
+GUEST_PER_MINUTE = int(os.environ.get("TOURFP_GUEST_PER_MINUTE", "60"))  # số lần gọi mỗi phút cho một địa chỉ khách
+_guest_calls: dict[str, deque[float]] = {}
+
+
+def _is_guest_route(request: Request) -> bool:
+    method = request.method
+    if method == "OPTIONS":  # trình duyệt hỏi trước (CORS) không gửi kèm mật khẩu
+        method = request.headers.get("access-control-request-method", "")
+    if method == "HEAD":
+        method = "GET"
+    return any(m == method and rx.fullmatch(request.url.path) for m, rx in _GUEST)
+
+
+def _guest_over_limit(request: Request) -> bool:
+    who = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?")
+    now = time.monotonic()
+    if len(_guest_calls) > 5000:  # dọn các địa chỉ đã im lặng
+        for k in [k for k, q in _guest_calls.items() if not q or now - q[-1] > 60]:
+            del _guest_calls[k]
+    calls = _guest_calls.setdefault(who, deque())
+    while calls and now - calls[0] > 60:
+        calls.popleft()
+    if len(calls) >= GUEST_PER_MINUTE:
+        return True
+    calls.append(now)
+    return False
+
+
+def _has_password(request: Request, password: str) -> bool:
+    auth = request.headers.get("authorization", "")
+    if not auth.startswith("Basic "):
+        return False
+    try:
+        user, _, given = base64.b64decode(auth[6:]).decode("utf-8").partition(":")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    return secrets.compare_digest(user.encode(), b"admin") and secrets.compare_digest(given.encode(), password.encode())
+
+
+def _is_guest(request: Request) -> bool:
+    """Người gọi không phải quản trị: không được thấy tour đang ẩn."""
+    return bool(getattr(request.state, "guest", False)) or request.headers.get("origin") in ORIGINS
+
+
 @app.middleware("http")
 async def remote_login(request: Request, call_next):
     if not _is_remote(request):
         return await call_next(request)
     password = _admin_password()
+    if password and _has_password(request, password):
+        return await call_next(request)
+    if _is_guest_route(request):
+        if _guest_over_limit(request):
+            return Response("Bạn gọi quá nhiều lần, vui lòng thử lại sau một phút.", status_code=429,
+                            media_type="text/plain; charset=utf-8", headers={"Retry-After": "60"})
+        request.state.guest = True
+        return await call_next(request)
     if not password:
         return Response("Chưa đặt mật khẩu quản trị nên không cho truy cập từ xa.", status_code=403, media_type="text/plain; charset=utf-8")
-    auth = request.headers.get("authorization", "")
-    if auth.startswith("Basic "):
-        try:
-            user, _, given = base64.b64decode(auth[6:]).decode("utf-8").partition(":")
-        except (ValueError, UnicodeDecodeError):
-            user, given = "", ""
-        if secrets.compare_digest(user.encode(), b"admin") and secrets.compare_digest(given.encode(), password.encode()):
-            return await call_next(request)
     return Response("Cần đăng nhập", status_code=401, media_type="text/plain; charset=utf-8",
                     headers={"WWW-Authenticate": 'Basic realm="TourFP", charset="UTF-8"'})
 
@@ -298,7 +357,7 @@ def get_tour(tour_id: str, request: Request) -> dict[str, Any]:
     with closing(db()) as conn:
         row = get_row(conn, tour_id)
     # thư viện trên trang đích (khách hàng mở ?tourfp=<mã>) không lấy được tour đang ẩn; trang quản trị thì vẫn xem được
-    if row["hidden"] and request.headers.get("origin") == TARGET:
+    if row["hidden"] and _is_guest(request):
         raise HTTPException(404, "Không có tour này")
     return {**summary(row), "steps": json.loads(row["steps"])}
 
@@ -376,13 +435,15 @@ def assist_route(body: AssistIn) -> dict[str, Any]:
 
 
 @app.get("/api/tours/{tour_id}/snippet.js")
-def snippet(tour_id: str, mode: Literal["guide", "direct"] = "guide", to: int | None = None) -> Response:
+def snippet(tour_id: str, request: Request, mode: Literal["guide", "direct"] = "guide", to: int | None = None) -> Response:
     """Mã chạy thử: cả thư viện lẫn tour trong một đoạn, dán vào console của trang đích là phát ngay.
 
     mode=guide dẫn từng bước, mode=direct tự đưa tới nơi; to=x dừng sau bước x (mặc định: hết tour).
     """
     with closing(db()) as conn:
         row = get_row(conn, tour_id)
+    if row["hidden"] and _is_guest(request):
+        raise HTTPException(404, "Không có tour này")
     last = min(max(to or row["step_count"], 1), row["step_count"])
     start = json.dumps({"mode": mode, "to": last})
     # TOURFP_PLAYER: chỉ phát, không hiện thanh ghi tour. Xoá cờ ngay sau khi nạp để lần nạp thư viện sau không bị ảnh hưởng.
@@ -577,6 +638,8 @@ async def tour_play(tour_id: str, body: PlayIn) -> dict[str, Any]:
         raise HTTPException(409, "Chrome của máy chủ đang được dùng (kiểm thử, đăng nhập, ghi tour hoặc chạy thử)")
     with closing(db()) as conn:
         row = get_row(conn, tour_id)
+    if row["hidden"] and _is_guest(request):
+        raise HTTPException(404, "Không có tour này")
     last = min(body.to or row["step_count"], row["step_count"])
     _spawn(do_play(TARGET + row["start_path"], json.loads(row["steps"]), {"mode": body.mode, "to": last}, row["layout"] or ""))
     return {"opened": True}

@@ -1163,7 +1163,9 @@
     start(opts);
   }
   // Hỏi trợ lý trên máy chủ "muốn tới màn hình nào", rồi cho người dùng chọn: dẫn từng bước hay vào thẳng.
-  async function ask(query) {
+  // ask(query, { ui: false }): chỉ trả JSON của trợ lý, không hiện gì, để trang tích hợp tự hiện trong hội thoại của mình
+  // rồi gọi TourFP.run(a.tour.id, { mode: 'guide' | 'direct', to: a.to_step }) khi người dùng chọn.
+  async function ask(query, opts = {}) {
     let a;
     try {
       const r = await fetch(SERVER + '/api/assist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query, layout: context().layout }) });
@@ -1172,6 +1174,7 @@
     } catch (e) {
       a = { matched: false, reason: 'Không gọi được trợ lý.' };
     }
+    if (opts.ui === false) return a;
     stopPlay();
     tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px'; tipMeta.textContent = '';
     bClose.style.display = '';
