@@ -921,7 +921,7 @@
     target = r.el;
     r.el.scrollIntoView({ block: 'center', inline: 'nearest' });
     rich(tipText, `${head}: ` + (st.note || (st.kind === 'click' ? `Bấm vào «${name}» để tiếp tục` : st.kind === 'hover' ? `Rê chuột vào «${name}»` : st.kind === 'input' ? `Nhập vào ô «${name}», xong bấm Tiếp` : name)));
-    tipMeta.textContent = `khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`;
+    rich(tipMeta, `khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`);
     // bước cuối: nút thành "Kết thúc". Bước có nút Tiếp thì chỉ còn một nút Kết thúc; bước phải tự bấm thì nút Dừng đổi tên.
     const lastStep = i === steps.length - 1, manual = st.kind === 'input' || st.kind === 'info';
     if (lastStep) setBtns(manual ? 'Kết thúc' : null, manual ? null : 'Kết thúc');

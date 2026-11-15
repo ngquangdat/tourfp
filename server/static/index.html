@@ -362,6 +362,7 @@ async function api(path, opts) {
 }
 // phần đặt trong «…» (tên tour) thành chữ in đậm, bỏ dấu ngoặc
 const rich = (node, text) => { node.replaceChildren(); String(text).split(/«([^»]*)»/).forEach((p, i) => { if (p) node.append(i % 2 ? el('b', '', p) : p); }); };
+const richEl = (tag, cls, text) => { const n = el(tag, cls); rich(n, text); return n; };
 const toast = t => { const e = $('toast'); rich(e, t); e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 2200); };
 // mở hộp: chọn sẵn ô nhập đầu tiên (không chọn nút, để lỡ bấm Enter không làm gì ngoài ý muốn)
 const show = id => { $(id).classList.add('on'); const f = $(id).querySelector('input:not([type=checkbox]),textarea') || $(id).querySelector('button'); if (f) setTimeout(() => f.focus(), 50); };
@@ -485,7 +486,7 @@ $('askForm').onsubmit = async e => {
   try {
     const a = await api('/api/assist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) });
     box.replaceChildren();
-    if (!a.matched) box.append(el('div', 'name', 'Chưa tìm thấy tour phù hợp'), el('p', '', a.reason || ''));
+    if (!a.matched) box.append(el('div', 'name', 'Chưa tìm thấy tour phù hợp'), richEl('p', '', a.reason || ''));
     else {
       box.append(el('div', 'name', a.tour.name + (a.to_step < a.tour.step_count ? ` · tới bước ${a.to_step}/${a.tour.step_count}` : '')));
       const why = el('p'); rich(why, a.reason + (a.to_step < a.tour.step_count ? ` Dừng ở bước ${a.to_step}: «${a.step.target}».` : '')); box.append(why);
@@ -615,7 +616,7 @@ function renderTests() {
       const main = el('button', 'row-main'); main.type = 'button'; main.innerHTML = CHEV; main.setAttribute('aria-expanded', open);
       if (!canOpen) { main.querySelector('.chev').style.visibility = 'hidden'; main.disabled = true; main.style.cursor = 'default'; }
       const text = el('div', 'row-text');
-      text.append(el('div', 'name', r.name), el('div', 'meta t-msg', r.message));
+      text.append(el('div', 'name', r.name), richEl('div', 'meta t-msg', r.message || ''));
       main.append(text);
       main.onclick = () => { openTest = openTest === r.tour_id ? null : r.tour_id; renderTests(); };
       head.append(main, el('span', 'badge ' + r.status, T_LABEL[r.status] || r.status));
@@ -635,7 +636,7 @@ function renderTests() {
         for (const st of r.steps) {
           const li = el('li');
           const detail = [st.score != null ? `khớp ${Math.round(st.score * 100)}%` : '', st.via || '', st.waited != null ? `chờ ${st.waited} ms` : '', st.note || ''].filter(Boolean).join(' · ');
-          li.append(el('span', 'num', st.n), el('span', 'res ' + st.result, R_LABEL[st.result] || st.result), el('span', 'kind ' + st.kind, KIND[st.kind] || st.kind), el('span', 'target', st.name), el('span', 'why', detail));
+          li.append(el('span', 'num', st.n), el('span', 'res ' + st.result, R_LABEL[st.result] || st.result), el('span', 'kind ' + st.kind, KIND[st.kind] || st.kind), el('span', 'target', st.name), richEl('span', 'why', detail));
           ol.append(li);
         }
         if (r.steps.length) wrap.append(ol);
