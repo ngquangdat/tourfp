@@ -222,6 +222,7 @@
   @media (max-width: 560px) { .play-row { flex-wrap: wrap; } .play-row > .btn { width: 100%; } }
   .t-ver { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
   .t-ver .meta { white-space: normal; margin-top: 2px; }
+  .t-builds { margin: 0 0 10px; } .t-builds .steps { margin-top: 10px; }
   .compat { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 6px; background: var(--surface-2); color: var(--muted); }
   .compat.forward, .compat.backward, .compat.compatible { background: rgba(61,214,140,.16); color: var(--green); }
   .compat.incompatible { background: rgba(229,72,77,.18); color: var(--bad); }
@@ -577,7 +578,7 @@ $('delGo').onclick = async () => {
 };
 
 // ---- kiểm thử tự động
-let tests = null, openTest = null;
+let tests = null, openTest = null, openBuilds = null;  // openBuilds: tour đang mở danh sách bản build đã đạt
 const T_LABEL = { pass: 'Đạt', warn: 'Lưu ý', fail: 'Lỗi', error: 'Lỗi chạy', need_login: 'Cần đăng nhập', blocked: 'Bị chặn' };
 const COMPAT = { same: 'Cùng phiên bản', forward: 'Tương thích xuôi', backward: 'Tương thích ngược', compatible: 'Tương thích', incompatible: 'Không tương thích', unknown: 'Chưa rõ phiên bản' };
 const R_LABEL = { done: 'Đã làm', found: 'Tìm thấy', skipped: 'Bỏ qua', fail: 'Lỗi', error: 'Lỗi', 'not-run': 'Chưa chạy' };
@@ -610,7 +611,7 @@ function renderTests() {
   if (t.last && t.last.results.length) {
     const list = el('div', 'list');
     for (const r of t.last.results) {
-      const canOpen = r.steps.length > 0 || !!r.compat, open = openTest === r.tour_id && canOpen;
+      const canOpen = r.steps.length > 0 || !!r.compat || (r.passed_builds || []).length > 0, open = openTest === r.tour_id && canOpen;
       const row = el('div', 'row' + (open ? ' open' : ''));
       const head = el('div', 'row-head');
       const main = el('button', 'row-main'); main.type = 'button'; main.innerHTML = CHEV; main.setAttribute('aria-expanded', open);
@@ -618,7 +619,7 @@ function renderTests() {
       const text = el('div', 'row-text');
       text.append(el('div', 'name', r.name), richEl('div', 'meta t-msg', r.message || ''));
       main.append(text);
-      main.onclick = () => { openTest = openTest === r.tour_id ? null : r.tour_id; renderTests(); };
+      main.onclick = () => { openTest = openTest === r.tour_id ? null : r.tour_id; openBuilds = null; renderTests(); };
       head.append(main, el('span', 'badge ' + r.status, T_LABEL[r.status] || r.status));
       row.append(head);
       if (open) {
@@ -632,6 +633,25 @@ function renderTests() {
           const ver = [r.compat.recorded ? 'Lúc ghi: ' + r.compat.recorded : '', r.compat.tested ? 'Lúc kiểm thử: ' + r.compat.tested : ''].filter(Boolean);
           for (const x of ver) v.append(el('div', 'meta', x));
           wrap.append(v);
+        }
+        // các bản build của trang đích mà tour đã kiểm thử đạt
+        const builds = r.passed_builds || [];
+        if (builds.length) {
+          const bw = el('div', 't-builds'), shown = openBuilds === r.tour_id;
+          const bb = el('button', 'btn gray', `Bản build đã đạt · ${builds.length}`); bb.type = 'button'; bb.setAttribute('aria-expanded', shown);
+          bb.onclick = () => { openBuilds = shown ? null : r.tour_id; renderTests(); };
+          bw.append(bb);
+          if (shown) {
+            const bl = el('ol', 'steps t-steps');
+            builds.forEach((b, i) => {
+              const li = el('li');
+              li.append(el('span', 'num', i + 1), el('span', 'res ' + (b.status === 'warn' ? 'skipped' : 'done'), b.status === 'warn' ? 'Lưu ý' : 'Đạt'),
+                el('span', 'target', [b.build, b.built_at ? 'build ' + when(b.built_at / 1000) : ''].filter(Boolean).join(' · ')), el('span', 'why', 'kiểm thử ' + when(b.tested_at)));
+              bl.append(li);
+            });
+            bw.append(bl);
+          }
+          wrap.append(bw);
         }
         for (const st of r.steps) {
           const li = el('li');

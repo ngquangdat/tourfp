@@ -151,6 +151,16 @@ TourFP.ask('tôi muốn nộp tiền');          // hỏi trợ lý rồi hiện
 TourFP.start({ mode: 'direct', to: 3 });  // chạy tour đang nạp: vào thẳng, dừng sau bước 3
 ```
 
+Gửi kèm `layout` (`desktop` | `mobile`) để ưu tiên tour đúng bố cục, và `build` (bản build của trang đích mà người dùng
+đang mở, ví dụ `main-35REP24N`, lấy từ `TourFP.appVersion().build`) để chỉ nhận tour đã kiểm thử đạt trên đúng bản build đó:
+
+```json
+{ "query": "tôi muốn nộp tiền", "layout": "mobile", "build": "main-35REP24N" }
+```
+
+Không gửi `build` thì không lọc. Tour được coi là đạt trên một bản build khi lần kiểm thử tự động gần nhất trên bản đó
+cho kết quả Đạt hoặc Lưu ý. Ở màn Kiểm thử tự động, mở chi tiết một tour rồi bấm **Bản build đã đạt** để xem danh sách.
+
 Chế độ vào thẳng tự bấm thay người dùng. Với tour đi qua thao tác có hậu quả (đặt lệnh, xác nhận giao dịch), nên đặt `to` dừng
 trước các bước đó, hoặc chỉ đưa ra lựa chọn hướng dẫn từng bước.
 

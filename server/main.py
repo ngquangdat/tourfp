@@ -63,6 +63,7 @@ MAX_BYTES = 2_000_000  # một tour vài chục bước chỉ khoảng vài ch�
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    _backfill_builds()
     task = asyncio.create_task(scheduler())  # lịch chạy kiểm thử hằng ngày
     try:
         yield
@@ -212,7 +213,61 @@ def db() -> sqlite3.Connection:
            )"""
     )
     conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    # kết quả kiểm thử gần nhất của từng tour trên từng bản build của trang đích (lịch sử lần chạy chỉ giữ 60 lần, bảng này giữ lâu dài)
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS tour_builds (
+               tour_id TEXT NOT NULL, build TEXT NOT NULL, app TEXT NOT NULL, status TEXT NOT NULL, tested_at REAL NOT NULL,
+               PRIMARY KEY (tour_id, build)
+           )"""
+    )
     return conn
+
+
+PASSED = ("pass", "warn")  # tour chạy hết: Đạt, hoặc Đạt kèm lưu ý
+
+
+def _build_key(app: Any) -> str:
+    """Tên bản build của trang đích: mã file build (main-XXXX), không có thì số phiên bản trang tự khai báo."""
+    if not isinstance(app, dict):
+        return ""
+    return str(app.get("build") or app.get("version") or "").strip()[:80]
+
+
+def _record_builds(conn: sqlite3.Connection, results: list[dict[str, Any]], tested_at: float) -> None:
+    """Ghi lại tour nào đạt hay lỗi trên bản build vừa kiểm thử. Lần bị chặn hay cần đăng nhập không nói lên điều gì nên bỏ qua."""
+    for r in results:
+        key = _build_key(r.get("app"))
+        if not key or r.get("status") not in ("pass", "warn", "fail"):
+            continue
+        conn.execute(
+            "INSERT INTO tour_builds VALUES (?, ?, ?, ?, ?) ON CONFLICT (tour_id, build) DO UPDATE SET "
+            "app = excluded.app, status = excluded.status, tested_at = excluded.tested_at WHERE excluded.tested_at >= tested_at",
+            (r["tour_id"], key, json.dumps(r["app"], ensure_ascii=False), r["status"], tested_at),
+        )
+
+
+def _backfill_builds() -> None:
+    """Lần đầu có bảng tour_builds: dựng lại từ các lần chạy còn lưu."""
+    with closing(db()) as conn, conn:
+        if conn.execute("SELECT 1 FROM tour_builds LIMIT 1").fetchone():
+            return
+        for run in conn.execute("SELECT * FROM test_runs ORDER BY started_at").fetchall():
+            try:
+                _record_builds(conn, json.loads(run["results"]).get("results", []), run["finished_at"] or run["started_at"])
+            except (ValueError, AttributeError, KeyError):
+                continue
+
+
+def _passed_builds(conn: sqlite3.Connection, tour_id: str) -> list[dict[str, Any]]:
+    rows = conn.execute("SELECT * FROM tour_builds WHERE tour_id = ? ORDER BY tested_at DESC", (tour_id,)).fetchall()
+    out = []
+    for r in rows:
+        if r["status"] not in PASSED:
+            continue
+        app = json.loads(r["app"])
+        out.append({"build": r["build"], "label": versions.label(app), "built_at": app.get("builtAt"), "status": r["status"], "tested_at": r["tested_at"]})
+    out.sort(key=lambda b: b["built_at"] or 0, reverse=True)  # bản build mới nhất ở trên
+    return out
 
 
 def get_setting(conn: sqlite3.Connection, key: str, default: Any = None) -> Any:
@@ -405,12 +460,16 @@ def delete_tour(tour_id: str) -> Response:
     with closing(db()) as conn, conn:
         get_row(conn, tour_id)
         conn.execute("DELETE FROM tours WHERE id = ?", (tour_id,))
+        conn.execute("DELETE FROM tour_builds WHERE tour_id = ?", (tour_id,))
     return Response(status_code=204)
 
 
 class AssistIn(BaseModel):
     query: str = Field(min_length=1, max_length=500)
     layout: Literal["desktop", "mobile"] | None = None
+    # bản build của trang đích mà người dùng đang mở (ví dụ "main-35REP24N", lấy từ TourFP.appVersion().build).
+    # Có gửi: chỉ trả tour đã kiểm thử đạt trên đúng bản build đó. Không gửi: không lọc.
+    build: str | None = Field(default=None, max_length=80)
 
     @field_validator("query")
     @classmethod
@@ -426,9 +485,18 @@ def assist_route(body: AssistIn) -> dict[str, Any]:
     """Người dùng nói muốn tới màn hình nào; trả về tour phù hợp, bước cần dừng và hai cách đi (dẫn từng bước, vào thẳng)."""
     with closing(db()) as conn:
         rows = conn.execute("SELECT * FROM tours WHERE hidden = 0 ORDER BY created_at DESC").fetchall()
+        build = (body.build or "").strip()
+        if build:
+            ok = {r["tour_id"] for r in conn.execute(
+                f"SELECT tour_id FROM tour_builds WHERE build = ? AND status IN ({','.join('?' * len(PASSED))})", (build, *PASSED))}
+            rows = [r for r in rows if r["id"] in ok]
     tours = [{**summary(r), "steps": json.loads(r["steps"])} for r in rows]
     ad, err = adapter()
     result = assist.find_tour(body.query, body.layout, tours, ad, TARGET)
+    if build:
+        result["build"] = build
+        if not tours:
+            result["reason"] = "Chưa có tour nào đã kiểm thử đạt trên bản build này."
     if err:
         result["ai_error"] = err
     return result
@@ -522,6 +590,7 @@ async def do_test_run(trigger: str) -> None:
                 "INSERT INTO test_runs VALUES (?, ?, ?, ?, ?, ?)",
                 (run_id, started, time.time(), trigger, status, json.dumps({"results": results, "error": test_state["error"]}, ensure_ascii=False)),
             )
+            _record_builds(conn, results, time.time())
             conn.execute("DELETE FROM test_runs WHERE id NOT IN (SELECT id FROM test_runs ORDER BY started_at DESC LIMIT 60)")
         test_state.update(running=False, current="", done=len(results))
 
@@ -611,9 +680,12 @@ async def tests_overview() -> dict[str, Any]:
         sched = get_setting(conn, "test_schedule", {"enabled": False, "time": "08:30"})
         show = bool(get_setting(conn, "test_show_browser", SHOW_DEFAULT))
         include_hidden = bool(get_setting(conn, "test_include_hidden", False))
+        last = _run_view(runs[0], True) if runs else None
+        for r in (last or {}).get("results", []):  # các bản build mà tour đã kiểm thử đạt, để xem trong chi tiết
+            r["passed_builds"] = _passed_builds(conn, r["tour_id"])
     return {
         "available": available, **test_state, "schedule": sched, "show_browser": show, "include_hidden": include_hidden,
-        "last": _run_view(runs[0], True) if runs else None,
+        "last": last,
         "history": [_run_view(r, False) for r in runs],
     }
 
