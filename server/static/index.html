@@ -226,6 +226,8 @@
   .r-ctx { flex-basis: 100%; margin-left: 28px; font-size: 12px; color: var(--faint); }
   .t-steps li.has-ctx { flex-wrap: wrap; row-gap: 4px; }
   #rProblems, #rList { margin-bottom: 30px; }
+  /* màn lượt chạy không in đậm gì: tên tour, bước kẹt đều chữ thường */
+  #viewRuns .name { font-weight: 400; }
   .short { display: none; }
   /* điện thoại: thanh trên cùng chỉ còn logo, nút sáng/tối, menu ba màn (chữ ngắn) và nút "+" thêm tour, để vừa 375px */
   @media (max-width: 560px) { .brand small, .brand span { display: none; } .bar-in { gap: 8px; padding: 0 12px; } .nav button { padding: 0 10px; } .long { display: none; } .short { display: inline; } #add { width: 34px; padding: 0; font-size: 22px; font-weight: 400; line-height: 1; } }
@@ -795,7 +797,7 @@ function renderRuns() {
       const row = el('div', 'row'), head = el('div', 'row-head'), main = el('button', 'row-main'); main.type = 'button'; main.innerHTML = CHEV;
       main.querySelector('.chev').style.visibility = 'hidden';
       const text = el('div', 'row-text');
-      text.append(richEl('div', 'name', `«${p.tour_name || '(không rõ tour)'}» · bước ${p.step}` + (p.name ? ` «${p.name}»` : '')),
+      text.append(el('div', 'name', `${p.tour_name || '(không rõ tour)'} · bước ${p.step}` + (p.name ? ` ${p.name}` : '')),
         el('div', 'meta', p.builds.length ? 'Bản build: ' + p.builds.map(([b, n]) => `${b} (${n})`).join(', ') : 'Chưa rõ bản build'));
       main.append(text); main.title = 'Chỉ xem các lượt của tour này';
       main.onclick = () => { $('rTour').value = p.tour_key; loadRuns(); };
@@ -815,7 +817,7 @@ function renderRuns() {
     const open = openRunId === x.id, row = el('div', 'row' + (open ? ' open' : '')), head = el('div', 'row-head');
     const main = el('button', 'row-main'); main.type = 'button'; main.innerHTML = CHEV; main.setAttribute('aria-expanded', open);
     const text = el('div', 'row-text');
-    text.append(richEl('div', 'name', `«${x.tour_name || '(không rõ tour)'}» · ${MODE_LABEL[x.mode] || x.mode}` + (x.to ? ` tới bước ${x.to}` : '')),
+    text.append(el('div', 'name', `${x.tour_name || '(không rõ tour)'} · ${MODE_LABEL[x.mode] || x.mode}` + (x.to ? ` tới bước ${x.to}` : '')),
       el('div', 'meta', [when(x.started_at), x.build || 'chưa rõ bản build', 'tourfp ' + (x.lib || '?'), x.ua, x.layout === 'mobile' ? 'điện thoại' : 'máy tính'].filter(Boolean).join(' · ')));
     main.append(text);
     main.onclick = () => { openRunId = open ? null : x.id; renderRuns(); if (!open) openRunDetail(x.id); };
@@ -829,14 +831,14 @@ function renderRuns() {
         const info = el('div', 'r-info');
         const dur = d.finished_at ? Math.round(d.finished_at - d.started_at) : null;
         info.append(el('div', '', [d.app ? 'App: ' + d.app : 'App: chưa rõ', 'bắt đầu ở ' + (d.path || '/'), d.width ? `cửa sổ ${d.width}×${d.height}` : '', dur != null ? `kéo dài ${dur} giây` : '', `${d.total} bước`].filter(Boolean).join(' · ')));
-        if (d.failed_step) info.append(richEl('div', '', `${RUN_LABEL[d.status] || d.status} ở bước ${d.failed_step}` + (d.failed_name ? ` «${d.failed_name}»` : '')));
+        if (d.failed_step) info.append(el('div', '', `${RUN_LABEL[d.status] || d.status} ở bước ${d.failed_step}` + (d.failed_name ? ` ${d.failed_name}` : '')));
         wrap.append(info);
         if (d.steps.length) {
           const ol = el('ol', 'steps t-steps');
           for (const st of d.steps) {
             const li = el('li');
             const why = [st.score != null ? `khớp ${Math.round(st.score * 100)}%` : '', st.via || '', st.waited != null ? `chờ ${st.waited} ms` : '', st.drift ? 'danh sách đã đổi' : '', st.at != null ? `giây ${st.at}` : ''].filter(Boolean).join(' · ');
-            li.append(el('span', 'num', st.n), el('span', 'res ' + st.result, RS_LABEL[st.result] || st.result), el('span', 'kind ' + st.kind, KIND[st.kind] || st.kind), el('span', 'target', st.name), richEl('span', 'why', why));
+            li.append(el('span', 'num', st.n), el('span', 'res ' + st.result, RS_LABEL[st.result] || st.result), el('span', 'kind ' + st.kind, KIND[st.kind] || st.kind), el('span', 'target', st.name), el('span', 'why', why));
             const ctx = screenOfCtx(st.ctx), exp = screenOfCtx(st.expected);
             if (ctx || exp) { li.classList.add('has-ctx'); li.append(el('div', 'r-ctx', (ctx ? 'Đang ở ' + ctx : '') + (exp && exp !== ctx ? (ctx ? ' · ' : '') + 'cần ở ' + exp : ''))); }
             ol.append(li);
