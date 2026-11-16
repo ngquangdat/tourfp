@@ -365,7 +365,7 @@
     <label>Dừng sau bước <input id="runTo" type="number" min="1"> <span id="runOf"></span></label>
     <label title="Chạy thử thường không được ghi. Chọn để lượt này hiện ở màn Lượt chạy, đánh dấu «chạy thử»."><input id="runLog" type="checkbox"> Ghi lượt chạy này</label>
   </div>
-  <div class="play-row"><div>Chạy trên máy này<small>Mở màn bắt đầu rồi mở bookmark TourFP là tour chạy. Nếu được hỏi mã thì dán mã đã chép · <button type="button" class="btn plain link" data-bm>Cài bookmark TourFP</button></small></div><button class="btn primary" id="runHere" type="button">Chép mã và mở trang</button></div>
+  <div class="play-row"><div>Chạy trên máy này<small>Trang mở ra, bấm bookmark TourFP là tour chạy · <button type="button" class="btn plain link" data-bm>Cài bookmark TourFP</button></small></div><button class="btn primary" id="runHere" type="button">Mở trang</button></div>
   <div class="play-row only-local"><div>Chạy bằng Chrome của máy chủ<small id="runWhat"></small></div><button class="btn gray" id="runPlay" type="button">Chạy</button></div>
   <p class="meta" id="runNote"></p>
   <p style="margin:0 0 14px;font-size:13px">Nếu trang đã cài sẵn thư viện, chỉ cần mở <code id="runParam" style="font:12px ui-monospace,Menlo,monospace;color:var(--code)"></code></p>
@@ -396,7 +396,7 @@
     <li><div>Chép mã của bookmark<small id="bmBack"></small></div><button class="btn primary" id="bmCopy" type="button">Chép mã</button></li>
     <li><div>Tạo bookmark cho trang bất kỳ<small>Máy tính: ⌘D (Mac) hoặc Ctrl+D (Windows) · Điện thoại: menu ⋮ → ☆</small></div></li>
     <li><div>Sửa bookmark vừa tạo: đặt tên <b>TourFP</b>, xoá hết ô địa chỉ (URL) rồi dán mã vừa chép, lưu lại</div></li>
-    <li><div>Khi dùng: đang ở trang TCInvest thì mở bookmark TourFP<small>Android Chrome: gõ TourFP vào thanh địa chỉ rồi chọn dòng bookmark</small></div></li>
+    <li><div>Khi dùng: đang ở trang TCInvest thì mở bookmark TourFP</div></li>
   </ol>
   <div class="sheet-foot"><button class="btn gray" id="bmDone" type="button">Xong</button></div>
 </div></div>
@@ -941,12 +941,11 @@ async function prepRun() {
 $('runHere').onclick = async () => {
   if (!runCode) await prepRun();
   if (!runCode) return;
-  const ok = await copyText(runCode);
+  // mã chạy thử đi kèm trong địa chỉ (#tourfp=…) để bookmark tự đọc; chép sẵn vào clipboard làm đường dự phòng khi app xoá mất phần #
+  await copyText(runCode);
   window.name = 'tourfp-play:' + JSON.stringify({ steps: runFull.steps, start: runOpt });
-  toast(ok ? 'Đã chép mã chạy thử · đang mở trang' : 'Không chép được mã chạy thử');
-  // mã chạy thử đi kèm trong địa chỉ (#tourfp=…) để bookmark tự đọc; mã đã chép là đường dự phòng khi app xoá mất phần #
-  const url = pending.start_url + '#tourfp=' + runCode;
-  setTimeout(() => { location.href = url; }, ok ? 700 : 2500);
+  toast('Đang mở trang · bấm bookmark TourFP ở đó');
+  setTimeout(() => { location.href = pending.start_url + '#tourfp=' + runCode; }, 500);
 };
 // vừa ghi xong trên trang đích và bấm Gửi: mở hộp Thêm tour với tour vừa ghi
 function takeDraft() {
