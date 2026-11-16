@@ -7,6 +7,7 @@
  * - Phát: tô sáng đích, chờ người dùng tự bấm rồi mới sang bước sau; tự chờ màn mới hiện ra.
  *   start({ mode: 'guide' | 'direct', to }) chạy tới bước thứ `to`: dẫn từng bước, hoặc thư viện tự đưa tới nơi.
  * - Cấu hình (đặt trước khi nạp): window.TOURFP_SERVER = địa chỉ máy chủ lưu tour; window.TOURFP_PLAYER = true để ẩn thanh ghi.
+ * - Lượt chạy của khách (dẫn từng bước hay vào thẳng) được gửi về máy chủ khi kết thúc, ẩn danh; tắt bằng window.TOURFP_LOG = false.
  * API: TourFP.record() | stop() | play() | start(opts) | load(steps) | export() | save() | run(id, opts) | ask(query)
  *      | capture(el) | find(fp) | showPanel(on) | destroy()
  */
@@ -20,6 +21,7 @@
   const outside = f => function () { const z = rootZone(); return z && window.Zone.current !== z ? z.run(f, this, arguments) : f.apply(this, arguments); };
   if (window.TourFP) window.TourFP.destroy();
 
+  const VERSION = '0.3.17';
   const W = { label: 40, key: 25, attr: 12, icon: 20, tag: 8, role: 5, comp: 15, anchor: 15, pos: 5 };
   const THRESHOLD = 0.6, MARGIN = 0.08, Z = 2147483000;
   // id và data-testid: chỉ nhận giá trị ổn định (bộ lọc ở capture() bỏ id tự sinh như mat-input-3, cdk-overlay-0, ...-12345)
@@ -621,6 +623,69 @@
   // chế độ chỉ phát (chạy thử từ trang quản trị, hoặc mở trang với ?tourfp=<mã>): không hiện thanh ghi tour
   const PLAYER = !!window.TOURFP_PLAYER || new URLSearchParams(location.search).has('tourfp');
   if (PLAYER) panel.style.display = 'none';
+
+  // ---------- ghi lại lượt chạy của khách ----------
+  // Một lượt = từ lúc start()/play()/direct() tới khi xong, khách bấm Dừng, kẹt, hay rời trang. Khi kết thúc, gửi về máy chủ
+  // (POST /api/runs): bản thư viện, bản build của app, từng bước tới đâu, kẹt ở đâu. Ẩn danh: không có gì nhận ra khách, không
+  // có chữ trên trang, chỉ pathname. Không ghi khi: window.TOURFP_LOG = false; đang dùng thanh ghi (người quản trị); trình duyệt
+  // do máy khác điều khiển (kiểm thử tự động); chạy thử qua bookmark.
+  const TRIP_KEY = 'tourfp:trip';
+  let trip = null, tourMeta = { id: '', name: '' }, viaBookmark = false;
+  const canLog = () => window.TOURFP_LOG !== false && PLAYER && !navigator.webdriver && !viaBookmark;
+  const rid = () => { const a = new Uint8Array(12); crypto.getRandomValues(a); return Array.from(a, b => b.toString(16).padStart(2, '0')).join(''); };
+  const uaShort = () => {
+    const u = navigator.userAgent, m = /Edg\/(\d+)/.exec(u) || /OPR\/(\d+)/.exec(u) || /Chrome\/(\d+)/.exec(u) || /Firefox\/(\d+)/.exec(u) || /Version\/(\d+).*Safari/.exec(u);
+    const b = m ? ({ Edg: 'Edge', OPR: 'Opera', Chrome: 'Chrome', Firefox: 'Firefox', Version: 'Safari' })[m[0].split('/')[0]] + ' ' + m[1] : 'Trình duyệt khác';
+    const os = /Windows/.test(u) ? 'Windows' : /iPhone|iPad/.test(u) ? 'iOS' : /Android/.test(u) ? 'Android' : /Mac OS/.test(u) ? 'macOS' : /Linux/.test(u) ? 'Linux' : '';
+    return b + (os ? ' · ' + os : '');
+  };
+  function tripBegin(mode, to) {
+    if (!canLog() || trip) return;
+    const all = fullSteps || steps;
+    trip = { id: rid(), tour_id: tourMeta.id, tour_name: tourMeta.name, tour_hash: hash(all.map(x => x.kind + ':' + nameOf(x.fp)).join('|')), mode, to: to || null, total: all.length,
+      status: 'running', failed_step: null, lib: VERSION, app: {}, layout: context().layout, ua: uaShort(), width: innerWidth, height: innerHeight,
+      path: location.pathname, started_at: Date.now() / 1000, finished_at: null, steps: [] };
+    const t = trip; appVersion().then(a => { t.app = a; }).catch(() => {});
+  }
+  // ghi hoặc cập nhật dòng của bước i
+  function tripStep(i, data) {
+    if (!trip || !steps[i]) return;
+    let x = trip.steps.find(y => y.n === i + 1);
+    if (!x) { x = { n: i + 1, kind: steps[i].kind, name: String(steps[i].title || nameOf(steps[i].fp)).slice(0, 80) }; trip.steps.push(x); }
+    Object.assign(x, data, { at: +((Date.now() / 1000 - trip.started_at)).toFixed(1) });
+    if (data.result === 'found' || data.result === 'done' || data.result === 'skipped') { if (trip.failed_step === i + 1) { trip.failed_step = null; trip.status = 'running'; } }
+  }
+  // kết quả một lần chờ đích, rút gọn để gửi
+  const tripFind = (r, waited) => r.skipTo != null ? { result: 'skipped' }
+    : { result: r.status === 'ok' ? 'found' : r.status, waited: Math.round(waited || 0), score: r.score != null ? +r.score.toFixed(3) : undefined, via: r.via ? String(r.via).slice(0, 60) : undefined, drift: !!r.drift, ctx: ctxOf(context()), expected: r.status === 'ok' ? undefined : ctxOf(r.expected) };
+  const ctxOf = c => c ? { path: c.path, dialog: c.dialog, step: c.step } : undefined;
+  // các bước đã tìm thấy trước bước i (kể cả i): khách đã làm xong (vì tour mới đi tiếp được)
+  const tripDone = i => { if (trip) for (const x of trip.steps) if (x.n <= i + 1 && x.result === 'found') x.result = 'done'; };
+  const tripSkip = (from, to) => { for (let k = from; k < to; k++) tripStep(k, { result: 'skipped' }); };
+  // mốc giữa chừng (đang chờ đích quá lâu, sai bố cục): gửi ngay nhưng lượt vẫn tiếp tục; bản cuối sẽ ghi đè
+  function tripMark(status, failed) { if (!trip) return; trip.status = status; if (failed != null) trip.failed_step = failed + 1; tripSend(trip); }
+  function tripEnd(status, failed) {
+    if (!trip) return;
+    const t = trip; trip = null;
+    t.status = status; if (failed != null) t.failed_step = failed + 1; t.finished_at = Date.now() / 1000;
+    // dừng hay rời trang khi đang chờ một bước: ghi bước đó là chỗ kẹt
+    const last = t.steps[t.steps.length - 1];
+    if (t.failed_step == null && status !== 'done' && last && !/^(done|found|skipped)$/.test(last.result)) t.failed_step = last.n;
+    // bản build của app có thể chưa đọc xong (fetch ngsw.json): chờ tối đa một nhịp
+    Promise.race([appVersion(), new Promise(r => setTimeout(r, 1000))]).then(a => { if (a) t.app = a; tripSend(t); }).catch(() => tripSend(t));
+  }
+  function tripSend(t) {
+    const body = JSON.stringify(t);
+    try { window.dispatchEvent(new CustomEvent('tourfp:run', { detail: JSON.parse(body) })); } catch (_) { /* trình duyệt cũ */ }
+    const url = SERVER + '/api/runs';
+    // text/plain để trình duyệt không phải hỏi trước (CORS); sendBeacon vẫn gửi được khi khách đang rời trang
+    try { if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([body], { type: 'text/plain' }))) return; } catch (_) { /* thử cách dưới */ }
+    try { fetch(url, { method: 'POST', body, headers: { 'Content-Type': 'text/plain' }, keepalive: true }).catch(() => {}); } catch (_) { /* không gửi được thì thôi */ }
+  }
+  // thư viện tự tải lại trang (về màn bắt đầu): giữ lượt qua lần tải, không tính là khách rời trang
+  const tripStash = () => { if (!trip) return; try { sessionStorage.setItem(TRIP_KEY, JSON.stringify(trip)); } catch (_) {} trip = null; };
+  try { const v = sessionStorage.getItem(TRIP_KEY); if (v) { sessionStorage.removeItem(TRIP_KEY); trip = JSON.parse(v); } } catch (_) { /* không đọc được thì bỏ qua */ }
+  addEventListener('pagehide', () => { if (trip) { const t = trip; trip = null; t.status = 'left'; t.finished_at = Date.now() / 1000; const last = t.steps[t.steps.length - 1]; if (t.failed_step == null && last && !/^(done|found|skipped)$/.test(last.result)) t.failed_step = last.n; tripSend(t); } });
   // Gắn giao diện vào trang. Khi thư viện được nạp trước cả lúc trang có thẻ <html> (chèn ở "document start"), chờ tới khi có.
   const mount = () => document.documentElement.append(box, tip, panel);
   if (document.documentElement) mount();
@@ -821,6 +886,7 @@
   }
   function stop() { recording = false; pending = null; popMo.disconnect(); bRec.textContent = '● Ghi'; bRec.style.background = '#2a2f3a'; target = null; box.style.display = 'none'; cancelAnimationFrame(raf); setInfo(); }
   function stopPlay(msg) {
+    tripEnd('stopped');
     token++; directRun++; playing = -1; atEnd = false; choice = null; resumeAt = -1; bClose.style.display = 'none';
     if (fullSteps) { steps.length = 0; steps.push(...fullSteps); fullSteps = null; }
     tip.style.display = 'none'; box.style.display = 'none'; target = null; cancelAnimationFrame(raf); setInfo(msg);
@@ -887,6 +953,7 @@
   // Báo sai bố cục và chờ: người dùng đổi kích thước cửa sổ (hoặc xoay máy) cho đúng thì tự chạy tiếp bằng `again`.
   function holdForLayout(again) {
     const c = layoutClash(), my = ++token;
+    tripMark('wrong-layout');
     playing = -1; target = null; box.style.display = 'none'; cancelAnimationFrame(raf);
     tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
     // lời nhắn cho khách hàng: nói việc cần làm, không nói chuyện kỹ thuật
@@ -913,7 +980,8 @@
     if (!target.isConnected || !visible(target) || offscreen(target) || context().dialog !== st.fp.ctx.dialog) show(i);
   }
   async function show(i) {
-    if (i >= steps.length) return stopPlay(`Xong tour · ${steps.length} bước`);
+    if (i >= steps.length) { tripDone(i - 1); tripEnd('done'); return stopPlay(`Xong tour · ${steps.length} bước`); }
+    tripDone(i - 1);
     playing = i; target = null; advancing = false; box.style.display = 'none';
     const st = steps[i], nx = steps[i + 1], name = st.title || nameOf(st.fp), head = `Bước ${i + 1}/${steps.length}`;
     // bước rê chuột mà đích của bước sau đã hiện sẵn thì không cần rê nữa
@@ -925,9 +993,13 @@
     setInfo(`${head}: đang tìm`);
     cancelAnimationFrame(raf); loop();
     const after = (from, n) => steps.slice(from, from + n).map((x, k) => ({ fp: x.fp, idx: from + k }));
-    const r = await waitFind(st.fp, 8000, after(i + 1, 2));
+    tripStep(i, { result: 'waiting' });
+    // 30 giây kể từ lúc bắt đầu bước mà vẫn chưa thấy đích: báo về máy chủ là đang kẹt ở bước này (lượt vẫn tiếp tục chờ)
+    setTimeout(() => { if (playing === i && trip && !target) tripMark('waiting', i); }, 30000);
+    const tf = performance.now(), r = await waitFind(st.fp, 8000, after(i + 1, 2));
     if (!r || playing !== i) return;
-    if (r.skipTo != null) return show(r.skipTo);
+    if (r.skipTo != null) { tripSkip(i, r.skipTo); return show(r.skipTo); }
+    tripStep(i, tripFind(r, performance.now() - tf));
     setInfo(`${head}: ${r.status}`);
     if (r.status !== 'ok') {
       rich(tipText, r.status === 'ambiguous'
@@ -936,7 +1008,7 @@
       tipMeta.textContent = r.status;
       // không bỏ cuộc: tiếp tục theo dõi, đích hiện ra sau (người dùng tự mở menu, dữ liệu tải xong) thì dẫn tiếp
       const again = await waitFind(st.fp, 600000, after(i + 1, 2));
-      if (again && playing === i) { if (again.skipTo != null) show(again.skipTo); else if (again.status === 'ok') show(i); }
+      if (again && playing === i) { if (again.skipTo != null) { tripSkip(i, again.skipTo); show(again.skipTo); } else if (again.status === 'ok') show(i); }
       return;
     }
     resumeAt = i;
@@ -953,7 +1025,7 @@
     // bước rê chuột: sang bước sau ngay khi đích của bước sau hiện ra
     if (st.kind === 'hover' && nx) {
       const r2 = await waitFind(nx.fp, 120000, after(i + 2, 2), true);
-      if (r2 && playing === i) { if (r2.skipTo != null) show(r2.skipTo); else if (r2.status === 'ok') show(i + 1); }
+      if (r2 && playing === i) { if (r2.skipTo != null) { tripSkip(i + 1, r2.skipTo); show(r2.skipTo); } else if (r2.status === 'ok') show(i + 1); }
     }
   }
   // bước đầu tiên thuộc màn đang đứng (cùng đường dẫn, hộp thoại, bước); ưu tiên bước đã tìm thấy đích
@@ -986,12 +1058,13 @@
     const timer = setInterval(() => {
       if (my !== token) return clearInterval(timer);
       if ((samePath || !before || pageSig() !== before) && sameCtx(context(), steps[0].fp.ctx) && find(steps[0].fp).el) { clearInterval(timer); try { sessionStorage.removeItem(RESUME); } catch (_) {} show(0); }
-      else if (performance.now() - t0 > 3000) { clearInterval(timer); location.assign(path); }
+      else if (performance.now() - t0 > 3000) { clearInterval(timer); tripStash(); location.assign(path); }
     }, 200);
   }
   // đang đứng ở màn cuối và bước cuối đã làm xong: báo cho người dùng, cho chọn phát lại từ đầu
   let atEnd = false;
   function endNotice() {
+    tripEnd('done');
     token++; playing = -1; target = null; atEnd = true; box.style.display = 'none'; cancelAnimationFrame(raf);
     tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
     rich(tipText, 'Bạn đang ở màn cuối của tour, bước cuối đã được thực hiện.'); tipMeta.textContent = '';
@@ -1002,6 +1075,7 @@
     directRun++; // lượt "vào thẳng" trước đó (nếu còn hẹn giờ tự đóng) không được đóng nhầm lượt phát này
     if (recording) stop();
     if (!steps.length) return setInfo('Chưa có bước nào');
+    tripBegin('guide');
     atEnd = false;
     if (layoutClash()) return holdForLayout(play);
     // có hộp thoại lạ đang che màn hình: chờ người dùng đóng nó trước, không vội về màn bắt đầu hay tải lại trang
@@ -1038,12 +1112,13 @@
   async function direct() {
     const my = directRun + 1;
     try { await directGo(); }
-    catch (_) { if (my === directRun && tip.style.display === 'block') directStuck(directAt); }
+    catch (_) { if (my === directRun && tip.style.display === 'block') { tripEnd('error', directAt); directStuck(directAt); } }
   }
   let directStuck = () => {};
   async function directGo() {
     if (recording) stop();
     if (!steps.length) return setInfo('Chưa có bước nào');
+    tripBegin('direct');
     if (layoutClash()) return holdForLayout(direct);
     const my = ++directRun, alive = () => my === directRun;
     const n = steps.length, last = steps[n - 1];
@@ -1051,11 +1126,12 @@
     tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
     const say = t => { rich(tipText, t); tipMeta.textContent = ''; setBtns(null, 'Dừng'); };
     say('Đang đưa bạn tới màn hình…');
-    const finish = () => { say('Đã đưa bạn tới nơi.'); setBtns(null, null); setTimeout(() => { if (alive()) stopPlay('Đã tới nơi'); }, 1600); };
+    const finish = () => { tripDone(n - 1); tripEnd('done'); say('Đã đưa bạn tới nơi.'); setBtns(null, null); setTimeout(() => { if (alive()) stopPlay('Đã tới nơi'); }, 1600); };
 
     // Không tự đi tiếp được từ bước i: dừng hẳn (không tô tối, không chặn thao tác) và báo cho người dùng. Phần hướng dẫn bằng chữ
     // do trang tích hợp hiện (ví dụ trong hội thoại, từ "summary" của trợ lý). "Thử lại" chạy lại từ đầu, "Đóng" tắt.
-    const stuck = i => {
+    const stuck = (i, r, waited) => {
+      tripStep(i, r ? tripFind(r, waited) : { result: 'stuck', ctx: ctxOf(context()), expected: ctxOf(steps[i].fp.ctx) }); tripEnd('stuck', i);
       directRun++; token++; playing = -1; target = null; atEnd = false; box.style.display = 'none'; cancelAnimationFrame(raf);
       rich(tipText, 'Chưa thể thực hiện lúc này.\nBạn có thể đọc hướng dẫn trong lúc chờ hệ thống ổn định.');
       tipMeta.textContent = ''; setBtns('Thử lại', 'Đóng'); bClose.style.display = 'none';
@@ -1072,7 +1148,7 @@
       if (location.pathname !== after.path) navTo(after.path);
       for (let t = 0; t < 15 && alive() && context().path !== after.path; t++) await sleep(200);
       if (!alive()) return;
-      if (context().path !== after.path) return location.assign(after.path); // app không tự chuyển: tải thẳng trang đó
+      if (context().path !== after.path) { tripEnd('done'); return location.assign(after.path); } // app không tự chuyển: tải thẳng trang đó
       return finish();
     }
 
@@ -1104,14 +1180,18 @@
       directAt = i;
       say(`Đang đưa bạn tới màn hình… (${i + 1}/${n})`);
       let r;
+      tripStep(i, { result: 'waiting' });
+      const tf = performance.now();
       try { r = await waitFind(st.fp, 6000, steps.slice(i + 1, i + 3).map((x, k) => ({ fp: x.fp, idx: i + 1 + k }))); } catch (_) { r = { status: 'not-found' }; }
       if (!alive()) return;
       if (!r) return stuck(i); // lượt chờ bị cắt ngang mà lượt vào thẳng này vẫn còn: không để màn hình đứng ở "Đang đưa bạn tới…"
-      if (r.skipTo != null) { i = r.skipTo - 1; continue; } // bước này đã được làm sẵn
-      if (r.status !== 'ok') return stuck(i); // không thấy đích (màn hình lỗi, dữ liệu chưa tải được): dừng, không treo màn hình
+      if (r.skipTo != null) { tripSkip(i, r.skipTo); i = r.skipTo - 1; continue; } // bước này đã được làm sẵn
+      if (r.status !== 'ok') return stuck(i, r, performance.now() - tf); // không thấy đích (màn hình lỗi, dữ liệu chưa tải được): dừng, không treo màn hình
+      tripStep(i, tripFind(r, performance.now() - tf));
       if (st.kind === 'input') { directRun++; return show(i); } // không tự làm được (không thấy đích, hoặc cần người dùng nhập): dẫn từng bước từ đây
       if (st.kind === 'hover') hoverOn(r.el);
       else { r.el.scrollIntoView({ block: 'center', inline: 'nearest' }); r.el.click(); }
+      tripStep(i, { result: 'done' });
       await sleep(350);
       if (!alive()) return;
     }
@@ -1125,6 +1205,7 @@
     if (fullSteps) { steps.length = 0; steps.push(...fullSteps); fullSteps = null; }
     const to = Math.min(Math.max(parseInt(opts.to, 10) || steps.length, 1), steps.length);
     if (to < steps.length) { fullSteps = steps.slice(); steps.length = to; }
+    tripBegin(opts.mode === 'direct' ? 'direct' : 'guide', to < (fullSteps || steps).length ? to : null);
     return opts.mode === 'direct' ? direct() : play();
   }
 
@@ -1220,6 +1301,7 @@
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const t = await r.json();
     fullSteps = null; steps.length = 0; steps.push(...t.steps); setInfo();
+    tourMeta = { id: String(id), name: String(t.name || '') };
     start(opts);
   }
   // Hỏi trợ lý trên máy chủ "muốn tới màn hình nào", rồi cho người dùng chọn: dẫn từng bước hay vào thẳng.
@@ -1272,6 +1354,7 @@
   }
   function playPack(q) {
     if (!q || !Array.isArray(q.steps) || !q.steps.length) throw new Error('mã không chứa bước nào');
+    viaBookmark = true; // chạy thử của người quản trị, không phải lượt của khách
     panel.style.display = 'none';
     window.TourFP.load(q.steps);
     start(q.start || {});
@@ -1333,12 +1416,13 @@
   bClr.onclick = () => { fullSteps = null; steps.length = 0; stopPlay(); };
   const pick = k => { const f = choice[k]; choice = null; bClose.style.display = 'none'; if (f) f(); };
   bNext.onclick = () => { if (choice) pick('guide'); else if (atEnd) { atEnd = false; goStart(); } else show(playing + 1); };
-  bStop.onclick = () => { if (choice) pick('direct'); else stopPlay(); };
+  bStop.onclick = () => { if (choice) pick('direct'); else { if (playing === steps.length - 1 && target) { tripDone(playing); tripEnd('done'); } stopPlay(); } };
   bClose.onclick = () => stopPlay();
   const L = [['mousemove', onMove], ['mouseover', onOver], ['pointerdown', onDown], ['mousedown', onUp], ['pointerup', onUp], ['mouseup', onUp], ['click', onClick]];
   for (const [n, h] of L) document.addEventListener(n, h, true);
 
   function destroy() {
+    tripEnd('stopped');
     token++; cancelAnimationFrame(raf); popMo.disconnect();
     for (const [n, h] of L) document.removeEventListener(n, h, true);
     box.remove(); tip.remove(); panel.remove();
@@ -1346,7 +1430,7 @@
   }
 
   const api_ = {
-    capture, captureAt: el => capture(clickableRoot(el)), isClickable, save, run, start, direct, ask, locate,
+    version: VERSION, capture, captureAt: el => capture(clickableRoot(el)), isClickable, save, run, start, direct, ask, locate,
     showPanel: (on = true) => { panel.style.display = on ? 'flex' : 'none'; }, find, score, context, clickables, record, stop, play, destroy, steps,
     apiStats: () => ({ responses: api.responses, values: api.set.size }),
     appVersion, bookmark,
@@ -1357,6 +1441,7 @@
     load: a => {
       for (const st of a) if (st && st.fp) st.fp = Object.assign({ tag: '', role: '', label: '', segs: [], soft: [], exact: '', key: {}, attr: {}, icon: '', comp: [], anchor: '' }, st.fp);
       fullSteps = null; steps.length = 0; steps.push(...a); setInfo();
+      tourMeta = { id: '', name: '' };
     },
   };
   // trang gọi thư viện từ trong Angular (dịch vụ, nút bấm): chuyển ra zone gốc trước khi làm gì

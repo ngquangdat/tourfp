@@ -18,7 +18,8 @@ Cấu hình qua biến môi trường:
 Đăng nhập: truy cập thẳng trên máy (localhost) thì không hỏi. Truy cập từ xa (có header của Cloudflare, hoặc tên miền
 khác localhost) thì phải nhập mật khẩu; chưa đặt mật khẩu thì từ chối hẳn. Máy chủ chỉ nên nghe trên 127.0.0.1.
 Riêng phần chỉ đọc mở cho khách, không cần mật khẩu: POST /api/assist, GET /api/tours/<mã> (tour đang hiện),
-GET /api/tours/<mã>/snippet.js, GET /tourfp.js; mỗi địa chỉ tối đa TOURFP_GUEST_PER_MINUTE lần mỗi phút (mặc định 60).
+GET /api/tours/<mã>/snippet.js, GET /tourfp.js, POST /api/runs (thư viện gửi lượt chạy của khách về);
+mỗi địa chỉ tối đa TOURFP_GUEST_PER_MINUTE lần mỗi phút (mặc định 60). Lượt chạy giữ TOURFP_RUNS_DAYS ngày (mặc định 90).
 """
 from __future__ import annotations
 
@@ -41,7 +42,7 @@ from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 import ai
 import versions
@@ -61,6 +62,8 @@ KINDS = {"click", "hover", "input", "info"}
 MAX_STEPS = 200
 DESC_MAX = 300  # độ dài tối đa của mô tả một bước
 MAX_BYTES = 2_000_000  # một tour vài chục bước chỉ khoảng vài chục KB
+RUNS_DAYS = int(os.environ.get("TOURFP_RUNS_DAYS", "90"))  # giữ lượt chạy của khách bao nhiêu ngày
+RUN_MAX_BYTES = 32_768  # một lượt chạy: vài chục bước, mỗi bước vài trường
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -113,6 +116,7 @@ _GUEST = [
     ("GET", re.compile(r"/api/tours/[\w-]+")),
     ("GET", re.compile(r"/api/tours/[\w-]+/snippet\.js")),
     ("GET", re.compile(r"/tourfp\.js")),
+    ("POST", re.compile(r"/api/runs")),
 ]
 GUEST_PER_MINUTE = int(os.environ.get("TOURFP_GUEST_PER_MINUTE", "60"))  # số lần gọi mỗi phút cho một địa chỉ khách
 _guest_calls: dict[str, deque[float]] = {}
@@ -221,6 +225,17 @@ def db() -> sqlite3.Connection:
                PRIMARY KEY (tour_id, build)
            )"""
     )
+    # lượt chạy tour của khách, do thư viện gửi về khi lượt kết thúc (ẩn danh: không có gì nhận ra khách)
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS tour_runs (
+               id TEXT PRIMARY KEY, tour_id TEXT NOT NULL DEFAULT '', tour_name TEXT NOT NULL DEFAULT '', tour_hash TEXT NOT NULL DEFAULT '',
+               mode TEXT NOT NULL, to_step INTEGER, total INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL,
+               failed_step INTEGER, failed_name TEXT NOT NULL DEFAULT '', lib TEXT NOT NULL DEFAULT '', app TEXT NOT NULL DEFAULT '{}',
+               build TEXT NOT NULL DEFAULT '', layout TEXT NOT NULL DEFAULT '', ua TEXT NOT NULL DEFAULT '', width INTEGER, height INTEGER,
+               path TEXT NOT NULL DEFAULT '', started_at REAL NOT NULL, finished_at REAL, steps TEXT NOT NULL DEFAULT '[]', received_at REAL NOT NULL
+           )"""
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS tour_runs_started ON tour_runs (started_at)")
     return conn
 
 
@@ -546,6 +561,160 @@ test_state: dict[str, Any] = {"running": False, "login_open": False, "record_ope
               "record_error": None, "play_error": None}  # lỗi riêng của cửa sổ ghi tour và chạy thử
 # tour vừa ghi trong Chrome do trang quản trị mở, chờ người dùng đặt tên và lưu ở hộp Thêm tour
 record_draft: dict[str, Any] = {"steps": None, "at": 0.0}
+
+
+# ---------- lượt chạy của khách ----------
+RUN_STATUS = ("done", "stopped", "stuck", "waiting", "wrong-layout", "left", "error")
+
+
+class RunCtx(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    path: str = Field(default="", max_length=200)
+    dialog: str = Field(default="", max_length=80)
+    step: str = Field(default="", max_length=60)
+
+
+class RunStep(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    n: int = Field(ge=1, le=MAX_STEPS)
+    kind: str = Field(default="", max_length=10)
+    name: str = Field(default="", max_length=80)
+    result: str = Field(default="", max_length=20)  # found · done · skipped · not-found · ambiguous · wrong-screen · wrong-state · stuck
+    waited: int | None = Field(default=None, ge=0, le=100_000_000)
+    score: float | None = Field(default=None, ge=0, le=1)
+    via: str = Field(default="", max_length=60)
+    drift: bool = False
+    at: float | None = Field(default=None, ge=0)  # giây kể từ lúc bắt đầu lượt
+    ctx: RunCtx | None = None  # màn đang đứng lúc đó
+    expected: RunCtx | None = None  # màn mong đợi (khi không tới được)
+
+
+class RunIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{8,40}$")
+    tour_id: str = Field(default="", max_length=40)
+    tour_name: str = Field(default="", max_length=120)
+    tour_hash: str = Field(default="", max_length=40)
+    mode: Literal["guide", "direct"]
+    to: int | None = Field(default=None, ge=1, le=MAX_STEPS)
+    total: int = Field(default=0, ge=0, le=MAX_STEPS)
+    status: Literal["done", "stopped", "stuck", "waiting", "wrong-layout", "left", "error"]
+    failed_step: int | None = Field(default=None, ge=1, le=MAX_STEPS)
+    lib: str = Field(default="", max_length=40)
+    app: dict[str, Any] = Field(default_factory=dict)
+    layout: str = Field(default="", max_length=10)
+    ua: str = Field(default="", max_length=120)
+    width: int | None = Field(default=None, ge=0, le=100_000)
+    height: int | None = Field(default=None, ge=0, le=100_000)
+    path: str = Field(default="", max_length=200)
+    started_at: float = Field(ge=0)
+    finished_at: float | None = Field(default=None, ge=0)
+    steps: list[RunStep] = Field(default_factory=list, max_length=MAX_STEPS)
+
+
+def _clean_app(app: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for k in ("version", "build", "ng"):
+        v = app.get(k)
+        if isinstance(v, str) and v:
+            out[k] = v[:80]
+    if isinstance(app.get("builtAt"), (int, float)):
+        out["builtAt"] = app["builtAt"]
+    return out
+
+
+@app.post("/api/runs", status_code=204)
+async def run_report(request: Request) -> Response:
+    """Thư viện gửi một lượt chạy (có thể gửi lại cùng mã khi trạng thái đổi; bản sau ghi đè bản trước).
+
+    Thân gửi bằng sendBeacon ở dạng text/plain (để trình duyệt không phải hỏi trước CORS), nên tự đọc JSON."""
+    raw = await request.body()
+    if len(raw) > RUN_MAX_BYTES:
+        raise HTTPException(413, "Lượt chạy quá dài")
+    try:
+        body = RunIn.model_validate(json.loads(raw))
+    except (ValueError, ValidationError):
+        raise HTTPException(422, "Dữ liệu lượt chạy không hợp lệ")
+    app_info = _clean_app(body.app)
+    failed_name = ""
+    if body.failed_step:
+        failed_name = next((s.name for s in body.steps if s.n == body.failed_step), "")
+    now = time.time()
+    with closing(db()) as conn, conn:
+        name = body.tour_name
+        if body.tour_id:
+            row = conn.execute("SELECT name FROM tours WHERE id = ?", (body.tour_id,)).fetchone()
+            if row:
+                name = row["name"]
+        conn.execute(
+            "INSERT INTO tour_runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET "
+            "status = excluded.status, failed_step = excluded.failed_step, failed_name = excluded.failed_name, app = excluded.app, "
+            "build = excluded.build, finished_at = excluded.finished_at, steps = excluded.steps, received_at = excluded.received_at",
+            (body.id, body.tour_id, name, body.tour_hash, body.mode, body.to, body.total, body.status, body.failed_step, failed_name,
+             body.lib, json.dumps(app_info, ensure_ascii=False), _build_key(app_info), body.layout, body.ua, body.width, body.height,
+             body.path, body.started_at, body.finished_at, json.dumps([s.model_dump(exclude_none=True) for s in body.steps], ensure_ascii=False), now),
+        )
+        conn.execute("DELETE FROM tour_runs WHERE received_at < ?", (now - RUNS_DAYS * 86400,))
+    return Response(status_code=204)
+
+
+def _run_row(r: sqlite3.Row) -> dict[str, Any]:
+    app_info = json.loads(r["app"] or "{}")
+    return {
+        "id": r["id"], "tour_id": r["tour_id"], "tour_name": r["tour_name"], "tour_key": r["tour_id"] or ("hash:" + r["tour_hash"]),
+        "mode": r["mode"], "to": r["to_step"], "total": r["total"], "status": r["status"], "failed_step": r["failed_step"], "failed_name": r["failed_name"],
+        "lib": r["lib"], "build": r["build"], "app": versions.label(app_info), "layout": r["layout"], "ua": r["ua"], "width": r["width"], "height": r["height"],
+        "path": r["path"], "started_at": r["started_at"], "finished_at": r["finished_at"],
+    }
+
+
+@app.get("/api/runs")
+def runs_list(days: int = 7, tour: str = "", build: str = "", status: str = "", limit: int = 300) -> dict[str, Any]:
+    """Lượt chạy của khách trong `days` ngày gần nhất, lọc theo tour (mã hoặc hash:…), bản build, trạng thái; kèm tổng hợp lỗi theo bước."""
+    days = min(max(days, 1), RUNS_DAYS)
+    limit = min(max(limit, 1), 2000)
+    with closing(db()) as conn:
+        rows = conn.execute(
+            "SELECT id, tour_id, tour_name, tour_hash, mode, to_step, total, status, failed_step, failed_name, lib, app, build, layout, ua, width, height, "
+            "path, started_at, finished_at FROM tour_runs WHERE started_at >= ? ORDER BY started_at DESC", (time.time() - days * 86400,)).fetchall()
+    runs = [_run_row(r) for r in rows]
+    tours_opt: dict[str, str] = {}
+    builds_opt: dict[str, int] = {}
+    for r in runs:
+        tours_opt.setdefault(r["tour_key"], r["tour_name"] or "(không tên)")
+        if r["build"]:
+            builds_opt[r["build"]] = builds_opt.get(r["build"], 0) + 1
+    picked = [r for r in runs if (not tour or r["tour_key"] == tour) and (not build or r["build"] == build) and (not status or r["status"] == status)]
+    counts = {k: 0 for k in RUN_STATUS}
+    for r in picked:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+    # lỗi theo bước: với mỗi tour, bước nào bị kẹt (stuck / waiting / left lúc đang chờ) nhiều nhất, trên những bản build nào
+    probs: dict[tuple[str, int], dict[str, Any]] = {}
+    for r in picked:
+        if r["failed_step"] and r["status"] in ("stuck", "waiting", "left", "error"):
+            key = (r["tour_key"], r["failed_step"])
+            p = probs.setdefault(key, {"tour_key": r["tour_key"], "tour_name": r["tour_name"], "step": r["failed_step"], "name": r["failed_name"], "count": 0, "builds": {}})
+            p["count"] += 1
+            if r["build"]:
+                p["builds"][r["build"]] = p["builds"].get(r["build"], 0) + 1
+    problems = sorted(probs.values(), key=lambda p: -p["count"])[:20]
+    for p in problems:
+        p["builds"] = sorted(p["builds"].items(), key=lambda b: -b[1])
+    return {
+        "days": days, "total": len(picked), "counts": counts, "runs": picked[:limit],
+        "tours": [{"key": k, "name": v} for k, v in sorted(tours_opt.items(), key=lambda kv: kv[1])],
+        "builds": [b for b, _ in sorted(builds_opt.items(), key=lambda kv: -kv[1])],
+        "problems": problems,
+    }
+
+
+@app.get("/api/runs/{run_id}")
+def run_detail(run_id: str) -> dict[str, Any]:
+    with closing(db()) as conn:
+        r = conn.execute("SELECT * FROM tour_runs WHERE id = ?", (run_id,)).fetchone()
+    if not r:
+        raise HTTPException(404, "Không có lượt chạy này")
+    return {**_run_row(r), "app_info": json.loads(r["app"] or "{}"), "steps": json.loads(r["steps"] or "[]")}
 
 
 def _browser_busy() -> bool:

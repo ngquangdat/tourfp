@@ -13,7 +13,7 @@
     --radius: 14px;
     --bar-bg: rgba(14,15,18,.72); --hover-2: #2e3037; --code: #c9cbd2; --bad: #ff8a8e; --bad-strong: #ff6b70; --tint-text: #ff7b7f;
     --note-text: #a8cdfa; --note-bad: #ff9a9d; --toast-bg: rgba(40,42,48,.92); --shadow: rgba(0,0,0,.6); --scrim: rgba(0,0,0,.5);
-    --switch-off: #3a3c43; --knob: #ffffff;
+    --switch-off: #3a3c43; --knob: #ffffff; --seg-on: #3a3d45;
     color-scheme: dark;
   }
   /* chế độ sáng: theo hệ điều hành (khi chọn Tự động) hoặc khi chọn Sáng */
@@ -23,7 +23,7 @@
     --accent: #e5484d; --accent-press: #c93c41; --green: #1a8f4e; --amber: #a86a12; --blue: #0a66d6;
     --bar-bg: rgba(245,245,247,.78); --hover-2: #dedee4; --code: #3a3a40; --bad: #c9343a; --bad-strong: #c9343a; --tint-text: #c9343a;
     --note-text: #0f4f9e; --note-bad: #b02a30; --toast-bg: rgba(255,255,255,.94); --shadow: rgba(0,0,0,.18); --scrim: rgba(0,0,0,.28);
-    --switch-off: #d9d9de; --knob: #ffffff;
+    --switch-off: #d9d9de; --knob: #ffffff; --seg-on: #ffffff;
     color-scheme: light;
   } }
   :root[data-theme=light] {
@@ -32,7 +32,7 @@
     --accent: #e5484d; --accent-press: #c93c41; --green: #1a8f4e; --amber: #a86a12; --blue: #0a66d6;
     --bar-bg: rgba(245,245,247,.78); --hover-2: #dedee4; --code: #3a3a40; --bad: #c9343a; --bad-strong: #c9343a; --tint-text: #c9343a;
     --note-text: #0f4f9e; --note-bad: #b02a30; --toast-bg: rgba(255,255,255,.94); --shadow: rgba(0,0,0,.18); --scrim: rgba(0,0,0,.28);
-    --switch-off: #d9d9de; --knob: #ffffff;
+    --switch-off: #d9d9de; --knob: #ffffff; --seg-on: #ffffff;
     color-scheme: light;
   }
   .theme-btn { width: 34px; height: 34px; border-radius: 17px; display: grid; place-items: center; color: var(--muted); flex: none; }
@@ -202,14 +202,33 @@
     .choices { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-  /* hai màn: danh sách tour và kiểm thử tự động */
-  body[data-view=tests] #viewTours, body[data-view=tests] #viewTours2, body:not([data-view=tests]) #viewTests { display: none; }
-  .tab-btn { display: inline-flex; align-items: center; gap: 7px; }
-  .tab-btn .tdot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
-  .tab-btn .tdot.pass { background: var(--green); } .tab-btn .tdot.warn { background: var(--amber); }
-  .tab-btn .tdot.fail { background: var(--accent); } .tab-btn .tdot.run { background: var(--blue); animation: tpulse 1s infinite alternate; }
+  /* ba màn: danh sách tour, kiểm thử tự động, lượt chạy của khách; menu trên thanh luôn hiện, màn đang xem thì sáng nút đó */
+  body:not([data-view=tours]) #viewTours, body:not([data-view=tours]) #viewTours2, body:not([data-view=tests]) #viewTests, body:not([data-view=runs]) #viewRuns { display: none; }
+  .nav { display: inline-flex; align-items: center; height: 34px; border-radius: 17px; background: var(--surface-2); flex: none; }
+  .nav button { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 17px; font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; transition: background .15s, color .15s; }
+  .nav button:hover { color: var(--text); }
+  .nav button.on { background: var(--seg-on); color: var(--text); box-shadow: 0 1px 3px var(--shadow); }
+  .nav .tdot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .nav .tdot.pass { background: var(--green); } .nav .tdot.warn { background: var(--amber); }
+  .nav .tdot.fail { background: var(--accent); } .nav .tdot.run { background: var(--blue); animation: tpulse 1s infinite alternate; }
   @keyframes tpulse { to { opacity: .3; } }
-  @media (max-width: 560px) { .brand small { display: none; } .bar-in { gap: 8px; padding: 0 12px; } .bar .btn { padding: 0 11px; } .tab-btn .long { display: none; } }
+  /* lượt chạy của khách */
+  .t-opts.solo { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+  .t-sched select { height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); padding: 0 8px; color: inherit; max-width: 220px; }
+  .badge.done { background: rgba(61,214,140,.16); color: var(--green); }
+  .badge.stopped { background: var(--surface-2); color: var(--muted); }
+  .badge.stuck { background: rgba(229,72,77,.18); color: var(--bad); }
+  .badge.waiting, .badge.wrong-layout { background: rgba(240,169,59,.16); color: var(--amber); }
+  .badge.left { background: rgba(90,169,255,.16); color: var(--blue); }
+  .res.waiting, .res.not-found, .res.ambiguous, .res.wrong-screen, .res.wrong-state, .res.stuck { color: var(--bad); }
+  .r-info { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+  .r-info div { white-space: normal; }
+  .r-ctx { flex-basis: 100%; margin-left: 28px; font-size: 12px; color: var(--faint); }
+  .t-steps li.has-ctx { flex-wrap: wrap; row-gap: 4px; }
+  #rProblems, #rList { margin-bottom: 30px; }
+  .short { display: none; }
+  /* điện thoại: thanh trên cùng chỉ còn logo, nút sáng/tối, menu ba màn (chữ ngắn) và nút "+" thêm tour, để vừa 375px */
+  @media (max-width: 560px) { .brand small, .brand span { display: none; } .bar-in { gap: 8px; padding: 0 12px; } .nav button { padding: 0 10px; } .long { display: none; } .short { display: inline; } #add { width: 34px; padding: 0; font-size: 22px; font-weight: 400; line-height: 1; } }
   @media (max-width: 560px) {
     .t-steps li { flex-wrap: wrap; gap: 4px 8px; }
     .t-steps .res { width: auto; }
@@ -248,11 +267,15 @@
 </head>
 <body>
 <header class="bar"><div class="bar-in">
-  <div class="brand"><i>T</i>Tour <small id="target"></small></div>
+  <div class="brand"><i>T</i><span>Tour</span> <small id="target"></small></div>
   <div class="grow"></div>
   <button class="theme-btn" id="themeBtn" type="button"></button>
-  <button class="btn gray tab-btn" id="testsTab" type="button"><span class="tdot" id="tDot"></span><span id="testsTabLabel">Kiểm thử<span class="long"> tự động</span></span></button>
-  <button class="btn primary" id="add">Thêm tour</button>
+  <nav class="nav" aria-label="Màn hình">
+    <button type="button" data-go="tours"><span class="long">Danh sách tour</span><span class="short">Tour</span></button>
+    <button type="button" data-go="runs"><span>Lượt chạy</span></button>
+    <button type="button" data-go="tests" id="testsTab"><span class="tdot" id="tDot"></span><span class="long">Kiểm thử tự động</span><span class="short">Kiểm thử</span></button>
+  </nav>
+  <button class="btn primary" id="add" aria-label="Thêm tour"><span class="long">Thêm tour</span><span class="short">+</span></button>
 </div></header>
 
 <main>
@@ -289,6 +312,24 @@
     <h2 class="sect">Các lần trước</h2>
     <div class="t-hist" id="tHist"></div>
   </div>
+</div>
+<div id="viewRuns">
+  <h1>Lượt chạy của khách</h1>
+  <p class="sub" id="rStatus">Đang tải…</p>
+  <section class="ask">
+    <div class="t-opts solo">
+      <label class="t-sched">Trong <select id="rDays"><option value="1">24 giờ</option><option value="7" selected>7 ngày</option><option value="30">30 ngày</option><option value="90">90 ngày</option></select></label>
+      <label class="t-sched">Tour <select id="rTour"><option value="">Tất cả</option></select></label>
+      <label class="t-sched">Bản build <select id="rBuild"><option value="">Tất cả</option></select></label>
+      <label class="t-sched">Trạng thái <select id="rState"><option value="">Tất cả</option><option value="done">Xong</option><option value="stuck">Kẹt</option><option value="waiting">Đang chờ</option><option value="stopped">Dừng</option><option value="left">Rời trang</option><option value="wrong-layout">Sai bố cục</option><option value="error">Lỗi</option></select></label>
+    </div>
+  </section>
+  <div id="rProbBox" hidden>
+    <h2 class="sect">Lỗi theo bước</h2>
+    <div id="rProblems"></div>
+  </div>
+  <h2 class="sect">Các lượt</h2>
+  <div id="rList"></div>
 </div>
 <div id="viewTours2">
   <input class="search" id="q" type="search" placeholder="Tìm theo tên hoặc màn bắt đầu" autocomplete="off">
@@ -723,6 +764,104 @@ function renderTests() {
   dot.className = 'tdot' + (t.running ? ' run' : !c ? '' : bad ? ' fail' : c.warn ? ' warn' : ' pass');
   $('testsTab').title = $('tStatus').textContent;
 }
+// ---------- lượt chạy của khách ----------
+let runs = null, openRunId = null;
+const runCache = {};  // chi tiết từng bước của lượt đã mở
+const RUN_LABEL = { done: 'Xong', stopped: 'Dừng', stuck: 'Kẹt', waiting: 'Đang chờ', 'wrong-layout': 'Sai bố cục', left: 'Rời trang', error: 'Lỗi' };
+const RS_LABEL = { done: 'Đã làm', found: 'Tìm thấy', skipped: 'Bỏ qua', waiting: 'Đang chờ', 'not-found': 'Không thấy', ambiguous: 'Mơ hồ', 'wrong-screen': 'Sai màn', 'wrong-state': 'Sai hộp thoại', stuck: 'Kẹt' };
+const MODE_LABEL = { guide: 'Dẫn từng bước', direct: 'Vào thẳng' };
+const screenOfCtx = c => c ? [c.path, c.dialog, c.step].filter(Boolean).join(' › ') : '';
+const runsQuery = () => `/api/runs?days=${$('rDays').value}&tour=${encodeURIComponent($('rTour').value)}&build=${encodeURIComponent($('rBuild').value)}&status=${$('rState').value}`;
+function fillSelect(sel, items, keep) {
+  const cur = sel.value;
+  sel.replaceChildren(el('option', '', 'Tất cả'));
+  for (const it of items) { const o = el('option', '', it.name); o.value = it.key; sel.append(o); }
+  sel.value = keep != null ? keep : cur; if (sel.selectedIndex < 0) sel.value = '';
+}
+function renderRuns() {
+  const r = runs;
+  fillSelect($('rTour'), r.tours);
+  fillSelect($('rBuild'), r.builds.map(b => ({ key: b, name: b })));
+  const c = r.counts, bad = c.stuck + c.error;
+  $('rStatus').textContent = r.total
+    ? `${r.total} lượt trong ${r.days === 1 ? '24 giờ' : r.days + ' ngày'} · ${c.done} xong` + (bad ? ` · ${bad} kẹt` : '') + (c.waiting ? ` · ${c.waiting} đang chờ` : '') + (c.left ? ` · ${c.left} rời trang` : '') + (c.stopped ? ` · ${c.stopped} dừng` : '') + (c['wrong-layout'] ? ` · ${c['wrong-layout']} sai bố cục` : '')
+    : `Chưa có lượt nào trong ${r.days === 1 ? '24 giờ' : r.days + ' ngày'} qua`;
+  // lỗi theo bước: bước nào của tour nào bị kẹt nhiều nhất, trên những bản build nào; bấm để lọc theo tour đó
+  const pb = $('rProblems'); pb.replaceChildren();
+  $('rProbBox').hidden = !r.problems.length;
+  if (r.problems.length) {
+    const list = el('div', 'list');
+    for (const p of r.problems) {
+      const row = el('div', 'row'), head = el('div', 'row-head'), main = el('button', 'row-main'); main.type = 'button'; main.innerHTML = CHEV;
+      main.querySelector('.chev').style.visibility = 'hidden';
+      const text = el('div', 'row-text');
+      text.append(richEl('div', 'name', `«${p.tour_name || '(không rõ tour)'}» · bước ${p.step}` + (p.name ? ` «${p.name}»` : '')),
+        el('div', 'meta', p.builds.length ? 'Bản build: ' + p.builds.map(([b, n]) => `${b} (${n})`).join(', ') : 'Chưa rõ bản build'));
+      main.append(text); main.title = 'Chỉ xem các lượt của tour này';
+      main.onclick = () => { $('rTour').value = p.tour_key; loadRuns(); };
+      head.append(main, el('span', 'badge stuck', `${p.count} lượt`));
+      row.append(head); list.append(row);
+    }
+    pb.append(list);
+  }
+  const box = $('rList'); box.replaceChildren();
+  if (!r.runs.length) {
+    const e = el('div', 'list empty');
+    e.append(el('b', '', 'Chưa có lượt chạy'), r.total ? 'Không có lượt nào khớp bộ lọc.' : 'Khi khách chạy một tour trên trang đích, lượt đó sẽ hiện ở đây.');
+    return box.append(e);
+  }
+  const list = el('div', 'list');
+  for (const x of r.runs) {
+    const open = openRunId === x.id, row = el('div', 'row' + (open ? ' open' : '')), head = el('div', 'row-head');
+    const main = el('button', 'row-main'); main.type = 'button'; main.innerHTML = CHEV; main.setAttribute('aria-expanded', open);
+    const text = el('div', 'row-text');
+    text.append(richEl('div', 'name', `«${x.tour_name || '(không rõ tour)'}» · ${MODE_LABEL[x.mode] || x.mode}` + (x.to ? ` tới bước ${x.to}` : '')),
+      el('div', 'meta', [when(x.started_at), x.build || 'chưa rõ bản build', 'tourfp ' + (x.lib || '?'), x.ua, x.layout === 'mobile' ? 'điện thoại' : 'máy tính'].filter(Boolean).join(' · ')));
+    main.append(text);
+    main.onclick = () => { openRunId = open ? null : x.id; renderRuns(); if (!open) openRunDetail(x.id); };
+    head.append(main, el('span', 'badge ' + x.status, (RUN_LABEL[x.status] || x.status) + (x.failed_step ? ` · bước ${x.failed_step}` : '')));
+    row.append(head);
+    if (open) {
+      const wrap = el('div', 'detail');
+      const d = runCache[x.id];
+      if (!d) wrap.append(el('div', 'r-info', 'Đang tải…'));
+      else {
+        const info = el('div', 'r-info');
+        const dur = d.finished_at ? Math.round(d.finished_at - d.started_at) : null;
+        info.append(el('div', '', [d.app ? 'App: ' + d.app : 'App: chưa rõ', 'bắt đầu ở ' + (d.path || '/'), d.width ? `cửa sổ ${d.width}×${d.height}` : '', dur != null ? `kéo dài ${dur} giây` : '', `${d.total} bước`].filter(Boolean).join(' · ')));
+        if (d.failed_step) info.append(richEl('div', '', `${RUN_LABEL[d.status] || d.status} ở bước ${d.failed_step}` + (d.failed_name ? ` «${d.failed_name}»` : '')));
+        wrap.append(info);
+        if (d.steps.length) {
+          const ol = el('ol', 'steps t-steps');
+          for (const st of d.steps) {
+            const li = el('li');
+            const why = [st.score != null ? `khớp ${Math.round(st.score * 100)}%` : '', st.via || '', st.waited != null ? `chờ ${st.waited} ms` : '', st.drift ? 'danh sách đã đổi' : '', st.at != null ? `giây ${st.at}` : ''].filter(Boolean).join(' · ');
+            li.append(el('span', 'num', st.n), el('span', 'res ' + st.result, RS_LABEL[st.result] || st.result), el('span', 'kind ' + st.kind, KIND[st.kind] || st.kind), el('span', 'target', st.name), richEl('span', 'why', why));
+            const ctx = screenOfCtx(st.ctx), exp = screenOfCtx(st.expected);
+            if (ctx || exp) { li.classList.add('has-ctx'); li.append(el('div', 'r-ctx', (ctx ? 'Đang ở ' + ctx : '') + (exp && exp !== ctx ? (ctx ? ' · ' : '') + 'cần ở ' + exp : ''))); }
+            ol.append(li);
+          }
+          wrap.append(ol);
+        } else wrap.append(el('div', 'r-info', 'Lượt này chưa tới bước nào.'));
+      }
+      row.append(wrap);
+    }
+    list.append(row);
+  }
+  box.append(list);
+}
+async function openRunDetail(id) {
+  if (runCache[id]) return;
+  try { runCache[id] = await api('/api/runs/' + encodeURIComponent(id)); } catch (e) { toast(e.message); openRunId = null; }
+  renderRuns();
+}
+async function loadRuns() {
+  clearTimeout(loadRuns.t);
+  try { runs = await api(runsQuery()); renderRuns(); } catch (e) { toast(e.message); }
+  if (document.body.dataset.view === 'runs') loadRuns.t = setTimeout(loadRuns, 60000);
+}
+for (const id of ['rDays', 'rTour', 'rBuild', 'rState']) $(id).onchange = loadRuns;
+
 async function loadTests() {
   clearTimeout(loadTests.t);
   try { tests = await api('/api/tests'); renderTests(); } catch (_) { /* thử lại ở nhịp sau */ }
@@ -843,16 +982,21 @@ $('themeBtn').onclick = () => {
   try { if (theme === 'auto') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, theme); } catch (_) {}
   applyTheme(theme); toast('Giao diện: ' + THEME_NAME[theme]);
 };
-// chuyển giữa hai màn; nhớ trên địa chỉ (#tests) để tải lại trang vẫn ở đúng màn
+// chuyển giữa ba màn; nhớ trên địa chỉ (#tests, #runs) để tải lại trang vẫn ở đúng màn
+const VIEW_TITLE = { tours: '', tests: 'Kiểm thử tự động · ', runs: 'Lượt chạy · ' };
 function setView() {
-  const tests = location.hash === '#tests';
-  document.body.dataset.view = tests ? 'tests' : 'tours';
-  $('testsTabLabel').innerHTML = tests ? 'Danh sách<span class="long"> tour</span>' : 'Kiểm thử<span class="long"> tự động</span>';
-  $('tDot').style.display = tests ? 'none' : '';
-  document.title = tests ? 'Kiểm thử tự động · Tour' : document.title.replace(/^Kiểm thử tự động · /, '');
+  const v = { '#tests': 'tests', '#runs': 'runs' }[location.hash] || 'tours';
+  document.body.dataset.view = v;
+  document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('on', b.dataset.go === v));
+  document.title = VIEW_TITLE[v] + document.title.replace(/^(Kiểm thử tự động|Lượt chạy) · /, '');
+  if (v === 'runs') loadRuns();
   scrollTo(0, 0);
 }
-$('testsTab').onclick = () => { if (location.hash === '#tests') history.pushState('', '', location.pathname + location.search); else location.hash = 'tests'; setView(); };
+document.querySelectorAll('.nav button').forEach(b => b.onclick = () => {
+  const v = b.dataset.go;
+  if (v === 'tours') history.pushState('', '', location.pathname + location.search); else location.hash = v;
+  setView();
+});
 addEventListener('hashchange', setView); addEventListener('popstate', setView);
 setView();
 takeDraft();

@@ -17,6 +17,7 @@ esac
 name=$(node -p "require('./package.json').name")
 version=$(node -p "require('./package.json').version")
 
+grep -q "const VERSION = '$version';" tourfp.js || { echo "VERSION trong tourfp.js đang khác $version. Hãy sửa cho khớp." >&2; exit 1; }
 [ -z "$(git status --porcelain)" ] || { echo "Còn thay đổi chưa commit. Hãy commit trước khi phát hành." >&2; exit 1; }
 if curl -fsS "https://registry.npmjs.org/$name" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.exit(JSON.parse(s).versions['$version']?0:1))"; then
   echo "$name@$version đã có trên npm. Hãy tăng số phiên bản trong package.json." >&2; exit 1
