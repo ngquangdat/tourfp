@@ -814,7 +814,7 @@
     tip.style.display = 'none'; box.style.display = 'none'; target = null; cancelAnimationFrame(raf); setInfo(msg);
   }
 
-  const sure = fp => find(fp).status === 'ok'; // tìm thấy và không mơ hồ
+  const sure = fp => { try { return find(fp).status === 'ok'; } catch (_) { return false; } }; // tìm thấy và không mơ hồ (dò lỗi thì coi như chưa thấy)
   // chờ đến khi màn hình của bước hiện ra và tìm được đích (kết quả mơ hồ không tính là tìm được)
   // alt: dấu vân tay của bước kế; nếu màn hình đã ở trạng thái của bước kế thì bỏ qua bước này
   // alts: các bước kế tiếp [{fp, idx}]. Nếu đích đang chờ không xuất hiện mà đích của một bước sau đã hiện ổn định
@@ -824,10 +824,16 @@
     const my = ++token;
     return new Promise(res => {
       const t0 = performance.now();
-      let deb = 0, timer = 0, last = null, seenIdx = -1, seenT = 0;
+      let deb = 0, timer = 0, stop = 0, last = null, seenIdx = -1, seenT = 0, done = false;
       const mo = new MutationObserver(() => { clearTimeout(deb); deb = setTimeout(tryIt, 120); });
-      const fin = r => { mo.disconnect(); clearInterval(timer); clearTimeout(deb); res(r); };
+      const fin = r => { if (done) return; done = true; mo.disconnect(); clearInterval(timer); clearTimeout(deb); clearTimeout(stop); res(r); };
+      // Hết giờ là trả kết quả, kể cả khi việc dò bị lỗi hay trang bận (API lỗi, màn hình vẽ dở): người gọi luôn nhận được câu trả lời.
+      stop = setTimeout(() => fin(my !== token ? null : last || { status: 'not-found', score: 0 }), ms);
       function tryIt() {
+        if (done) return;
+        try { look(); } catch (_) { if (performance.now() - t0 > ms) fin(last || { status: 'not-found', score: 0 }); } // dò lỗi thì coi như chưa thấy
+      }
+      function look() {
         if (my !== token) return fin(null);
         last = find(fp);
         if (last.status === 'ok') return fin(last);
@@ -1011,7 +1017,15 @@
     for (const t of ['pointerover', 'mouseover', 'mousemove']) el.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
     for (let p = el, i = 0; p && p !== document.body && i < 4; p = p.parentElement, i++) for (const t of ['pointerenter', 'mouseenter']) p.dispatchEvent(new MouseEvent(t, { bubbles: false, view: window }));
   }
+  // Vào thẳng không bao giờ được bỏ màn hình đứng ở "Đang đưa bạn tới…": lỗi bất ngờ giữa chừng thì báo như không tới được.
+  let directAt = 0;
   async function direct() {
+    const my = directRun + 1;
+    try { await directGo(); }
+    catch (_) { if (my === directRun && tip.style.display === 'block') directStuck(directAt); }
+  }
+  let directStuck = () => {};
+  async function directGo() {
     if (recording) stop();
     if (!steps.length) return setInfo('Chưa có bước nào');
     if (layoutClash()) return holdForLayout(direct);
@@ -1033,6 +1047,7 @@
       setInfo(`Chưa tới được bước ${i + 1}/${n}`);
       try { window.dispatchEvent(new CustomEvent('tourfp:stuck', { detail: { step: i + 1, total: n } })); } catch (_) { /* trình duyệt cũ */ }
     };
+    directStuck = stuck; directAt = 0;
 
     // 1) Bước cuối chuyển sang một trang khác và không mở hộp thoại: vào thẳng trang đó bằng đường dẫn.
     const after = last.after;
@@ -1060,9 +1075,12 @@
     for (let i = start; i < n; i++) {
       const st = steps[i];
       if (st.kind === 'info') continue; // bước chỉ để xem, không có gì phải làm
+      directAt = i;
       say(`Đang đưa bạn tới màn hình… (${i + 1}/${n})`);
-      const r = await waitFind(st.fp, 6000, steps.slice(i + 1, i + 3).map((x, k) => ({ fp: x.fp, idx: i + 1 + k })));
-      if (!r || !alive()) return;
+      let r;
+      try { r = await waitFind(st.fp, 6000, steps.slice(i + 1, i + 3).map((x, k) => ({ fp: x.fp, idx: i + 1 + k }))); } catch (_) { r = { status: 'not-found' }; }
+      if (!alive()) return;
+      if (!r) return stuck(i); // lượt chờ bị cắt ngang mà lượt vào thẳng này vẫn còn: không để màn hình đứng ở "Đang đưa bạn tới…"
       if (r.skipTo != null) { i = r.skipTo - 1; continue; } // bước này đã được làm sẵn
       if (r.status !== 'ok') return stuck(i); // không thấy đích (màn hình lỗi, dữ liệu chưa tải được): dừng, không treo màn hình
       if (st.kind === 'input') { directRun++; return show(i); } // không tự làm được (không thấy đích, hoặc cần người dùng nhập): dẫn từng bước từ đây
