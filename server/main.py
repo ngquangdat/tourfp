@@ -236,6 +236,9 @@ def db() -> sqlite3.Connection:
            )"""
     )
     conn.execute("CREATE INDEX IF NOT EXISTS tour_runs_started ON tour_runs (started_at)")
+    # source: '' = khách thật; 'trial' = người quản trị chạy thử có chọn "Ghi lượt chạy này"
+    if "source" not in {r["name"] for r in conn.execute("PRAGMA table_info(tour_runs)")}:
+        conn.execute("ALTER TABLE tour_runs ADD COLUMN source TEXT NOT NULL DEFAULT ''")
     return conn
 
 
@@ -535,17 +538,17 @@ def assist_route(body: AssistIn) -> dict[str, Any]:
 
 
 @app.get("/api/tours/{tour_id}/snippet.js")
-def snippet(tour_id: str, request: Request, mode: Literal["guide", "direct"] = "guide", to: int | None = None) -> Response:
+def snippet(tour_id: str, request: Request, mode: Literal["guide", "direct"] = "guide", to: int | None = None, log: bool = False) -> Response:
     """Mã chạy thử: cả thư viện lẫn tour trong một đoạn, dán vào console của trang đích là phát ngay.
 
-    mode=guide dẫn từng bước, mode=direct tự đưa tới nơi; to=x dừng sau bước x (mặc định: hết tour).
+    mode=guide dẫn từng bước, mode=direct tự đưa tới nơi; to=x dừng sau bước x (mặc định: hết tour); log=true ghi lượt chạy thử.
     """
     with closing(db()) as conn:
         row = get_row(conn, tour_id)
     if row["hidden"] and _is_guest(request):
         raise HTTPException(404, "Không có tour này")
     last = min(max(to or row["step_count"], 1), row["step_count"])
-    start = json.dumps({"mode": mode, "to": last})
+    start = json.dumps({"mode": mode, "to": last, "log": log})
     # TOURFP_PLAYER: chỉ phát, không hiện thanh ghi tour. Xoá cờ ngay sau khi nạp để lần nạp thư viện sau không bị ảnh hưởng.
     code = (
         "window.TOURFP_PLAYER=true;\n"
@@ -610,6 +613,7 @@ class RunIn(BaseModel):
     started_at: float = Field(ge=0)
     finished_at: float | None = Field(default=None, ge=0)
     steps: list[RunStep] = Field(default_factory=list, max_length=MAX_STEPS)
+    source: Literal["", "trial"] = ""
 
 
 def _clean_app(app: dict[str, Any]) -> dict[str, Any]:
@@ -647,12 +651,13 @@ async def run_report(request: Request) -> Response:
             if row:
                 name = row["name"]
         conn.execute(
-            "INSERT INTO tour_runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET "
+            "INSERT INTO tour_runs (id, tour_id, tour_name, tour_hash, mode, to_step, total, status, failed_step, failed_name, lib, app, build, layout, ua, "
+            "width, height, path, started_at, finished_at, steps, received_at, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET "
             "status = excluded.status, failed_step = excluded.failed_step, failed_name = excluded.failed_name, app = excluded.app, "
             "build = excluded.build, finished_at = excluded.finished_at, steps = excluded.steps, received_at = excluded.received_at",
             (body.id, body.tour_id, name, body.tour_hash, body.mode, body.to, body.total, body.status, body.failed_step, failed_name,
              body.lib, json.dumps(app_info, ensure_ascii=False), _build_key(app_info), body.layout, body.ua, body.width, body.height,
-             body.path, body.started_at, body.finished_at, json.dumps([s.model_dump(exclude_none=True) for s in body.steps], ensure_ascii=False), now),
+             body.path, body.started_at, body.finished_at, json.dumps([s.model_dump(exclude_none=True) for s in body.steps], ensure_ascii=False), now, body.source),
         )
         conn.execute("DELETE FROM tour_runs WHERE received_at < ?", (now - RUNS_DAYS * 86400,))
     return Response(status_code=204)
@@ -664,7 +669,7 @@ def _run_row(r: sqlite3.Row) -> dict[str, Any]:
         "id": r["id"], "tour_id": r["tour_id"], "tour_name": r["tour_name"], "tour_key": r["tour_id"] or ("hash:" + r["tour_hash"]),
         "mode": r["mode"], "to": r["to_step"], "total": r["total"], "status": r["status"], "failed_step": r["failed_step"], "failed_name": r["failed_name"],
         "lib": r["lib"], "build": r["build"], "app": versions.label(app_info), "layout": r["layout"], "ua": r["ua"], "width": r["width"], "height": r["height"],
-        "path": r["path"], "started_at": r["started_at"], "finished_at": r["finished_at"],
+        "path": r["path"], "started_at": r["started_at"], "finished_at": r["finished_at"], "source": r["source"],
     }
 
 
@@ -676,7 +681,7 @@ def runs_list(days: int = 7, tour: str = "", build: str = "", status: str = "", 
     with closing(db()) as conn:
         rows = conn.execute(
             "SELECT id, tour_id, tour_name, tour_hash, mode, to_step, total, status, failed_step, failed_name, lib, app, build, layout, ua, width, height, "
-            "path, started_at, finished_at FROM tour_runs WHERE started_at >= ? ORDER BY started_at DESC", (time.time() - days * 86400,)).fetchall()
+            "path, started_at, finished_at, source FROM tour_runs WHERE started_at >= ? ORDER BY started_at DESC", (time.time() - days * 86400,)).fetchall()
     runs = [_run_row(r) for r in rows]
     tours_opt: dict[str, str] = {}
     builds_opt: dict[str, int] = {}
@@ -887,10 +892,11 @@ async def tests_run() -> dict[str, Any]:
 class PlayIn(BaseModel):
     mode: Literal["guide", "direct"] = "guide"
     to: int | None = Field(default=None, ge=1, le=MAX_STEPS)
+    log: bool = False  # ghi lượt chạy thử này vào màn Lượt chạy (đánh dấu "chạy thử")
 
 
 @app.post("/api/tours/{tour_id}/play", status_code=202)
-async def tour_play(tour_id: str, body: PlayIn) -> dict[str, Any]:
+async def tour_play(tour_id: str, body: PlayIn, request: Request) -> dict[str, Any]:
     """Chạy thử: máy chủ mở Chrome tại màn bắt đầu của tour và phát tour ngay."""
     if _browser_busy():
         raise HTTPException(409, "Chrome của máy chủ đang được dùng (kiểm thử, đăng nhập, ghi tour hoặc chạy thử)")
@@ -899,7 +905,7 @@ async def tour_play(tour_id: str, body: PlayIn) -> dict[str, Any]:
     if row["hidden"] and _is_guest(request):
         raise HTTPException(404, "Không có tour này")
     last = min(body.to or row["step_count"], row["step_count"])
-    _spawn(do_play(TARGET + row["start_path"], json.loads(row["steps"]), {"mode": body.mode, "to": last}, row["layout"] or ""))
+    _spawn(do_play(TARGET + row["start_path"], json.loads(row["steps"]), {"mode": body.mode, "to": last, "log": body.log}, row["layout"] or ""))
     return {"opened": True}
 
 

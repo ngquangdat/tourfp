@@ -185,6 +185,8 @@ lại giữa chừng (`left`, gửi bằng `sendBeacon`), hoặc thư viện g�
 
 Ẩn danh: không có gì nhận ra khách, không có chữ trên trang, chỉ có pathname. Không ghi khi đang dùng thanh ghi, khi trình
 duyệt do máy khác điều khiển (kiểm thử tự động), khi chạy thử qua bookmark, hoặc khi đặt `window.TOURFP_LOG = false`.
+Muốn xem một lần chạy thử ở màn Lượt chạy thì chọn **Ghi lượt chạy này** trong hộp Chạy thử (hoặc `start({ log: true })`,
+`?tourfp=<mã>&log=true`); lượt đó được đánh dấu «chạy thử».
 Trang nhận thêm sự kiện `tourfp:run` trên `window` (`detail` là chính dữ liệu gửi đi) để ghi vào hệ thống log của mình.
 
 Xem ở màn **Lượt chạy** của trang quản trị: lọc theo khoảng ngày, tour, bản build, trạng thái; khối "Lỗi theo bước" cho biết

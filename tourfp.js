@@ -8,6 +8,7 @@
  *   start({ mode: 'guide' | 'direct', to }) chạy tới bước thứ `to`: dẫn từng bước, hoặc thư viện tự đưa tới nơi.
  * - Cấu hình (đặt trước khi nạp): window.TOURFP_SERVER = địa chỉ máy chủ lưu tour; window.TOURFP_PLAYER = true để ẩn thanh ghi.
  * - Lượt chạy của khách (dẫn từng bước hay vào thẳng) được gửi về máy chủ khi kết thúc, ẩn danh; tắt bằng window.TOURFP_LOG = false.
+ *   Chạy thử của người quản trị không ghi, trừ khi start({ log: true }) (lượt được đánh dấu "chạy thử").
  * API: TourFP.record() | stop() | play() | start(opts) | load(steps) | export() | save() | run(id, opts) | ask(query)
  *      | capture(el) | find(fp) | showPanel(on) | destroy()
  */
@@ -630,8 +631,9 @@
   // có chữ trên trang, chỉ pathname. Không ghi khi: window.TOURFP_LOG = false; đang dùng thanh ghi (người quản trị); trình duyệt
   // do máy khác điều khiển (kiểm thử tự động); chạy thử qua bookmark.
   const TRIP_KEY = 'tourfp:trip';
-  let trip = null, tourMeta = { id: '', name: '' }, viaBookmark = false;
-  const canLog = () => window.TOURFP_LOG !== false && PLAYER && !navigator.webdriver && !viaBookmark;
+  // forceLog: người quản trị chạy thử có chọn "Ghi lượt chạy này" (start({ log: true })): ghi dù là bookmark hay Playwright, đánh dấu "chạy thử"
+  let trip = null, tourMeta = { id: '', name: '' }, viaBookmark = false, forceLog = false;
+  const canLog = () => forceLog || (window.TOURFP_LOG !== false && PLAYER && !navigator.webdriver && !viaBookmark);
   const rid = () => { const a = new Uint8Array(12); crypto.getRandomValues(a); return Array.from(a, b => b.toString(16).padStart(2, '0')).join(''); };
   const uaShort = () => {
     const u = navigator.userAgent, m = /Edg\/(\d+)/.exec(u) || /OPR\/(\d+)/.exec(u) || /Chrome\/(\d+)/.exec(u) || /Firefox\/(\d+)/.exec(u) || /Version\/(\d+).*Safari/.exec(u);
@@ -642,7 +644,7 @@
   function tripBegin(mode, to) {
     if (!canLog() || trip) return;
     const all = fullSteps || steps;
-    trip = { id: rid(), tour_id: tourMeta.id, tour_name: tourMeta.name, tour_hash: hash(all.map(x => x.kind + ':' + nameOf(x.fp)).join('|')), mode, to: to || null, total: all.length,
+    trip = { id: rid(), tour_id: tourMeta.id, tour_name: tourMeta.name, tour_hash: hash(all.map(x => x.kind + ':' + nameOf(x.fp)).join('|')), mode, to: to || null, total: all.length, source: forceLog ? 'trial' : '',
       status: 'running', failed_step: null, lib: VERSION, app: {}, layout: context().layout, ua: uaShort(), width: innerWidth, height: innerHeight,
       path: location.pathname, started_at: Date.now() / 1000, finished_at: null, steps: [] };
     const t = trip; appVersion().then(a => { t.app = a; }).catch(() => {});
@@ -1205,6 +1207,7 @@
     if (fullSteps) { steps.length = 0; steps.push(...fullSteps); fullSteps = null; }
     const to = Math.min(Math.max(parseInt(opts.to, 10) || steps.length, 1), steps.length);
     if (to < steps.length) { fullSteps = steps.slice(); steps.length = to; }
+    forceLog = opts.log === true || opts.log === 1 || opts.log === '1' || opts.log === 'true';
     tripBegin(opts.mode === 'direct' ? 'direct' : 'guide', to < (fullSteps || steps).length ? to : null);
     return opts.mode === 'direct' ? direct() : play();
   }
@@ -1460,6 +1463,6 @@
 
   // mở trang với ?tourfp=<mã>[&mode=guide|direct][&to=<bước>]: tải tour đó từ máy chủ và chạy luôn
   const qs = new URLSearchParams(location.search), wanted = qs.get('tourfp');
-  if (wanted && !steps.length) run(wanted, { mode: qs.get('mode'), to: qs.get('to') }).catch(() => setInfo('Không tải được tour ' + wanted));
+  if (wanted && !steps.length) run(wanted, { mode: qs.get('mode'), to: qs.get('to'), log: qs.get('log') }).catch(() => setInfo('Không tải được tour ' + wanted));
   if (window.TOURFP_BOOKMARK) { delete window.TOURFP_BOOKMARK; bookmark(); }
 })();
