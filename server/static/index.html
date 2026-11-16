@@ -138,8 +138,6 @@
   .seg button.on { background: var(--surface-2); color: var(--text); font-weight: 500; }
   .run-opts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; font-size: 13px; color: var(--muted); }
   .run-opts input { width: 58px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); padding: 0 8px; font-variant-numeric: tabular-nums; }
-  .run-opts label { display: flex; align-items: center; gap: 6px; }
-  .run-opts input[type=checkbox] { width: 16px; height: 16px; padding: 0; border: 0; border-radius: 0; background: none; accent-color: var(--accent); } /* như các ô tick khác (.t-sched) */
   .t-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .t-opts { display: flex; align-items: center; gap: 10px 22px; flex-wrap: wrap; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
   .t-sched { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
@@ -363,7 +361,6 @@
   <div class="run-opts">
     <div class="seg" id="runMode"><button type="button" data-mode="guide">Hướng dẫn từng bước</button><button type="button" data-mode="direct">Vào thẳng</button></div>
     <label>Dừng sau bước <input id="runTo" type="number" min="1"> <span id="runOf"></span></label>
-    <label title="Chạy thử thường không được ghi. Chọn để lượt này hiện ở màn Lượt chạy, đánh dấu «chạy thử»."><input id="runLog" type="checkbox"> Ghi lượt chạy này</label>
   </div>
   <div class="play-row"><div>Chạy trên máy này<small>Trang mở ra, bấm bookmark TourFP là tour chạy · <button type="button" class="btn plain link" data-bm>Cài bookmark TourFP</button></small></div><button class="btn primary" id="runHere" type="button">Mở trang</button></div>
   <div class="play-row only-local"><div>Chạy bằng Chrome của máy chủ<small id="runWhat"></small></div><button class="btn gray" id="runPlay" type="button">Chạy</button></div>
@@ -539,25 +536,23 @@ async function fill(d, t) {
 }
 
 let runOpt = { mode: 'guide', to: 1 };
-const runQuery = () => `mode=${runOpt.mode}&to=${runOpt.to}` + (runOpt.log ? '&log=true' : '');
+const runQuery = () => `mode=${runOpt.mode}&to=${runOpt.to}`;
 function syncRun() {
   const t = pending;
   document.querySelectorAll('#runMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === runOpt.mode));
   $('runTo').value = runOpt.to; $('runTo').max = t.step_count; $('runOf').textContent = `/ ${t.step_count}`;
-  $('runLog').checked = !!runOpt.log;
   $('runWhat').textContent = runOpt.mode === 'direct' ? 'Thư viện tự làm các bước và đưa tới nơi' : 'Thư viện chỉ từng thao tác, người dùng tự bấm';
   $('runParam').textContent = `${t.start_url}?tourfp=${t.id}&${runQuery()}`;
   prepRun();
 }
 function openRun(t, opt) {
   pending = t;
-  runOpt = { mode: opt && opt.mode === 'direct' ? 'direct' : 'guide', to: Math.min(Math.max((opt && opt.to) || t.step_count, 1), t.step_count), log: false };
+  runOpt = { mode: opt && opt.mode === 'direct' ? 'direct' : 'guide', to: Math.min(Math.max((opt && opt.to) || t.step_count, 1), t.step_count) };
   rich($('runName'), `«${t.name}» · ${t.step_count} bước · bố cục ${t.layout || 'không rõ'}`);
   syncRun();
   show('runSheet'); pollPlay();
 }
 document.querySelectorAll('#runMode button').forEach(b => b.onclick = () => { runOpt.mode = b.dataset.mode; syncRun(); });
-$('runLog').onchange = () => { runOpt.log = $('runLog').checked; syncRun(); };
 $('runTo').oninput = () => { const v = parseInt($('runTo').value, 10); if (v >= 1 && v <= pending.step_count) { runOpt.to = v; syncRun(); } };
 
 // ---- trợ lý tìm tour

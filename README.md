@@ -196,8 +196,8 @@ giữa chừng (`left`, bắn ở `pagehide` — dùng `keepalive: true` hoặc 
 
 Ẩn danh: không có gì nhận ra khách, không có chữ trên trang, chỉ có pathname. Không bắn khi đang dùng thanh ghi, khi trình
 duyệt do máy khác điều khiển (kiểm thử tự động), khi chạy thử qua bookmark, hoặc khi đặt `window.TOURFP_LOG = false`.
-Muốn xem một lần chạy thử ở màn Lượt chạy thì chọn **Ghi lượt chạy này** trong hộp Chạy thử (hoặc `start({ log: true })`,
-`?tourfp=<mã>&log=true`); lượt đó được đánh dấu «chạy thử» — vẫn cần trang có nghe `tourfp:run`.
+Muốn một lần chạy thử cũng bắn sự kiện thì gọi `start({ log: true })` (hoặc `?tourfp=<mã>&log=true`); lượt đó được đánh
+dấu «chạy thử» — vẫn cần trang có nghe `tourfp:run`.
 
 Xem ở màn **Lượt chạy** của trang quản trị: lọc theo khoảng ngày, tour, bản build, trạng thái; khối "Lỗi theo bước" cho biết
 bước nào của tour nào kẹt nhiều nhất trên bản build nào. Lượt chạy giữ 90 ngày (đổi bằng `TOURFP_RUNS_DAYS`).
