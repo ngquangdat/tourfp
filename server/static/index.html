@@ -908,8 +908,9 @@ async function packTour(obj) {
 function bookmarklet() {
   const admin = cfg.public_url || location.origin;
   const lib = `https://cdn.jsdelivr.net/npm/tourfp@${cfg.version}/tourfp.js`;
-  // TOURFP_SERVER: thư viện gửi lượt chạy (và tải tour) về đúng máy chủ quản trị này, không phải localhost mặc định
-  const code = `(()=>{window.TOURFP_ADMIN=${JSON.stringify(admin)};window.TOURFP_SERVER=${JSON.stringify(admin)};if(window.TourFP&&TourFP.bookmark)return TourFP.bookmark();`
+  // Bookmark không cần TOURFP_SERVER: tour đi theo mã trong địa chỉ, lưu tour đi qua __tourfpHost, lượt chạy chỉ là sự kiện tourfp:run;
+  // và CSP của trang đích cũng chặn mọi lệnh gọi ra ngoài.
+  const code = `(()=>{window.TOURFP_ADMIN=${JSON.stringify(admin)};if(window.TourFP&&TourFP.bookmark)return TourFP.bookmark();`
     // Thư viện quá cũ (chưa có TourFP.bookmark) thì ít nhất cũng hiện thanh ghi.
     + `window.TOURFP_PLAYER=true;window.TOURFP_BOOKMARK=true;const s=document.createElement('script');s.src=${JSON.stringify(lib)};`
     + `s.onload=()=>{if(window.TourFP&&!TourFP.bookmark)TourFP.showPanel(true)};s.onerror=()=>alert('Không nạp được TourFP');document.head.appendChild(s)})()`;
