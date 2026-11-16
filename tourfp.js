@@ -10,8 +10,14 @@
  * API: TourFP.record() | stop() | play() | start(opts) | load(steps) | export() | save() | run(id, opts) | ask(query)
  *      | capture(el) | find(fp) | showPanel(on) | destroy()
  */
-(() => {
+(function tourfp() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return; // được import ở phía máy chủ (SSR, công cụ build): không làm gì
+  // App Angular (zone.js): mọi hẹn giờ, MutationObserver, sự kiện tạo trong zone của Angular đều làm app chạy change detection.
+  // Thư viện theo dõi DOM liên tục, mà change detection lại đổi DOM (NgClass đổi class…), nên hai bên kích nhau thành vòng lặp
+  // không dứt và trang đứng hẳn. Vì vậy thư viện luôn chạy ngoài zone của Angular, ở zone gốc.
+  const rootZone = () => window.Zone && window.Zone.root;
+  { const z = rootZone(); if (z && window.Zone.current !== z) return z.run(tourfp); }
+  const outside = f => function () { const z = rootZone(); return z && window.Zone.current !== z ? z.run(f, this, arguments) : f.apply(this, arguments); };
   if (window.TourFP) window.TourFP.destroy();
 
   const W = { label: 40, key: 25, attr: 12, icon: 20, tag: 8, role: 5, comp: 15, anchor: 15, pos: 5 };
@@ -1331,7 +1337,7 @@
     delete window.TourFP;
   }
 
-  window.TourFP = {
+  const api_ = {
     capture, captureAt: el => capture(clickableRoot(el)), isClickable, save, run, start, direct, ask, locate,
     showPanel: (on = true) => { panel.style.display = on ? 'flex' : 'none'; }, find, score, context, clickables, record, stop, play, destroy, steps,
     apiStats: () => ({ responses: api.responses, values: api.set.size }),
@@ -1345,6 +1351,9 @@
       fullSteps = null; steps.length = 0; steps.push(...a); setInfo();
     },
   };
+  // trang gọi thư viện từ trong Angular (dịch vụ, nút bấm): chuyển ra zone gốc trước khi làm gì
+  for (const k in api_) if (typeof api_[k] === 'function') api_[k] = outside(api_[k]);
+  window.TourFP = api_;
 
   // vừa bị tải lại trang giữa lúc đưa về màn bắt đầu: nạp lại tour và phát tiếp (không điều hướng lần nữa)
   try {
