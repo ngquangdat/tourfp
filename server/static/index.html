@@ -127,6 +127,7 @@
   .answer p { margin: 4px 0 12px; color: var(--muted); font-size: 14px; }
   .answer p b { color: var(--text); font-weight: 600; }
   .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .steps + .choices { margin-top: 10px; }
   .choice { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; transition: border-color .15s, background .15s; }
   .choice:hover { border-color: rgba(229,72,77,.6); background: rgba(229,72,77,.06); }
   .choice b { display: block; font-size: 14px; }
@@ -524,6 +525,15 @@ $('askForm').onsubmit = async e => {
     else {
       box.append(el('div', 'name', a.tour.name + (a.to_step < a.tour.step_count ? ` · tới bước ${a.to_step}/${a.tour.step_count}` : '')));
       const why = el('p'); rich(why, a.reason + (a.to_step < a.tour.step_count ? ` Dừng ở bước ${a.to_step}: «${a.step.target}».` : '')); box.append(why);
+      if (a.steps && a.steps.length) {  // tóm tắt từng bước, cùng mẫu danh sách bước của chi tiết tour
+        const ol = el('ol', 'steps');
+        for (const st of a.steps) {
+          const li = el('li'); li.append(el('span', 'num', st.n), el('span', 'kind ' + st.action, KIND[st.action] || st.action), el('span', 'target', st.target));
+          if (st.desc) { li.classList.add('has-desc'); li.append(el('span', 'step-desc', st.desc)); }
+          ol.append(li);
+        }
+        box.append(ol);
+      }
       const ch = el('div', 'choices');
       for (const o of a.options) {
         const b = el('button', 'choice'); b.type = 'button'; b.append(el('b', '', o.label), el('span', '', o.detail));

@@ -142,6 +142,11 @@ Câu trả lời gồm `tour` (tour được chọn), `to_step` (dừng sau bư�
   bằng đường dẫn; nếu không thì tự bấm các bước trên trang cuối. Gặp bước cần người dùng nhập, hoặc không tìm thấy đích,
   nó chuyển sang hướng dẫn từng bước từ chỗ đó.
 
+Câu trả lời còn có tóm tắt ngắn gọn từng bước (tới bước sẽ dừng), để hiện cho người dùng trước khi chạy: `steps` là danh
+sách `{ n, action, target, text, desc? }`, `summary` là bản chữ sẵn, mỗi bước một dòng ("1. Bấm «Menu»"), tên đặt trong «…».
+Bước không có chữ trên giao diện (chỉ là icon hay một khối) được ghi là "phần được tô sáng"; đặt tên bước ở trang quản trị
+để câu tóm tắt rõ hơn.
+
 Mỗi lựa chọn kèm `run_url` (mở trang với `?tourfp=<mã>&mode=<guide|direct>&to=<bước>`, dùng khi thư viện đã cài trong app) và
 `snippet_url` (mã chạy thử để dán vào console). Trên trang quản trị có ô **Trợ lý tìm tour** để thử ngay.
 
@@ -161,6 +166,11 @@ Gửi kèm `layout` (`desktop` | `mobile`) để ưu tiên tour đúng bố cụ
 
 Không gửi `build` thì không lọc. Tour được coi là đạt trên một bản build khi lần kiểm thử tự động gần nhất trên bản đó
 cho kết quả Đạt hoặc Lưu ý. Ở màn Kiểm thử tự động, mở chi tiết một tour rồi bấm **Bản build đã đạt** để xem danh sách.
+
+Khi vào thẳng mà một bước không tìm thấy đích sau 6 giây (màn hình lỗi, dữ liệu chưa tải được), thư viện dừng hẳn, không
+che hay chặn màn hình, và báo "Chưa thể thực hiện lúc này. Bạn có thể đọc hướng dẫn trong lúc chờ hệ thống ổn định.",
+với nút **Thử lại** và **Đóng**. Phần hướng dẫn bằng chữ do trang tích hợp hiện (ví dụ trong hội thoại, lấy từ `summary` của
+trợ lý). Trang nhận thêm sự kiện `tourfp:stuck` trên `window` (`detail: { step, total }`).
 
 Chế độ vào thẳng tự bấm thay người dùng. Với tour đi qua thao tác có hậu quả (đặt lệnh, xác nhận giao dịch), nên đặt `to` dừng
 trước các bước đó, hoặc chỉ đưa ra lựa chọn hướng dẫn từng bước.

@@ -63,6 +63,40 @@ def screen_of(step: dict[str, Any]) -> str:
     return " > ".join(p for p in parts if p)
 
 
+VERB = {"click": "Bấm", "hover": "Rê chuột vào", "input": "Nhập vào ô", "info": "Xem"}
+
+
+def _spoken(step: dict[str, Any]) -> tuple[str, str]:
+    """(tên, chỗ) của đích để nói với người dùng. Bước không có chữ (chỉ là icon hay một khối) thì tên rỗng, không đọc tên thẻ."""
+    if step.get("title"):
+        return str(step["title"]).strip()[:80], ""
+    fp = step.get("fp") or {}
+    segs = fp.get("segs") or []
+    name = str(fp.get("exact") or (segs[0] if segs else "") or fp.get("label") or "").strip()
+    if name:
+        return name[:80], ""
+    icon = str(fp.get("icon") or "")
+    if icon and not re.match(r"[dg]:", icon) and not re.search(r"[/#.]", icon):
+        name = icon  # tên icon đọc được ("edit", "close"), không phải mã băm hay tên file
+    return name[:80], str(fp.get("anchor") or "").strip()[:60]
+
+
+def outline(steps: list[dict[str, Any]], to: int) -> list[dict[str, Any]]:
+    """Các bước của tour tới bước `to`, mỗi bước một câu ngắn, để hiện cho người dùng trước khi chạy."""
+    out = []
+    for i, s in enumerate(steps[:to], 1):
+        verb = VERB.get(str(s.get("kind")), "Tới")
+        name, place = _spoken(s)
+        text = f"{verb} «{name}»" if name else f"{verb} phần được tô sáng"
+        if place:
+            text += f" ở mục «{place}»"
+        item = {"n": i, "action": s.get("kind"), "target": name or step_name(s)[:80], "text": text}
+        if s.get("desc"):
+            item["desc"] = str(s["desc"])  # mô tả người quản trị nhập cho bước
+        out.append(item)
+    return out
+
+
 def catalog(tours: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Bản rút gọn của danh sách tour để đưa cho mô hình: chỉ nhãn giao diện, không có dấu vân tay."""
     return [
@@ -195,6 +229,9 @@ def find_tour(query: str, layout: str | None, tours: list[dict[str, Any]], adapt
         to_step=to,
         step={"n": to, "action": step.get("kind"), "target": step_name(step), "screen": screen_of(step)},
         reason=pick["reason"] or f"Tour «{tour['name']}» phù hợp với yêu cầu của bạn.",
+        # tóm tắt ngắn gọn từng bước: "steps" để tự trình bày, "summary" là bản chữ sẵn (mỗi bước một dòng, tên trong «…»)
+        steps=(ol := outline(tour["steps"], to)),
+        summary="\n".join(f"{o['n']}. {o['text']}" for o in ol),
         options=[
             option("guide", "Hướng dẫn từng bước", f"Chỉ cho bạn từng thao tác, bạn tự bấm{part}"),
             option("direct", "Vào thẳng màn hình", f"Tự đưa bạn tới đó{part}"),
