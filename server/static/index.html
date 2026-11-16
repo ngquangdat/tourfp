@@ -179,8 +179,7 @@
   .field input, .field textarea { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 9px 12px; }
   .field textarea { height: 150px; resize: vertical; font: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
   .field input:focus, .field textarea:focus, .search:focus { outline: 2px solid rgba(229,72,77,.55); outline-offset: 0; }
-  .hint { font-size: 12px; color: var(--faint); margin: -8px 0 14px; }
-  .hint code, .sheet li code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; background: var(--bg); padding: 1px 5px; border-radius: 5px; color: var(--code); }
+  .sheet li code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; background: var(--bg); padding: 1px 5px; border-radius: 5px; color: var(--code); }
   .err { color: var(--tint-text); font-size: 13px; min-height: 18px; margin: 0 0 10px; }
   .sheet-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
   .sheet ol { margin: 0 0 16px; padding: 0; list-style: none; counter-reset: s; }
@@ -421,7 +420,8 @@ const hide = () => document.querySelectorAll('.scrim.on').forEach(s => s.classLi
 const when = t => new Date(t * 1000).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const autoName = s => (s.fp.segs && s.fp.segs[0]) || s.fp.label || s.fp.icon || s.fp.tag || '—'; // tên thư viện tự lấy từ giao diện
 const stepName = s => s.title || autoName(s);
-const screenOf = c => c.path + (c.dialog ? ' › ' + c.dialog.replace(/^app-/, '') : '') + (c.step ? ' › ' + c.step.replace(/^#/, '') : '');
+// màn hình của một bước: đường dẫn › hộp thoại › bước (dùng ở chi tiết tour và chi tiết lượt chạy)
+const screenOf = c => c ? c.path + (c.dialog ? ' › ' + c.dialog.replace(/^app-/, '') : '') + (c.step ? ' › ' + c.step.replace(/^#/, '') : '') : '';
 
 function render() {
   const q = $('q').value.trim().toLowerCase();
@@ -667,7 +667,9 @@ $('delGo').onclick = async () => {
 let tests = null, openTest = null, openBuilds = null;  // openBuilds: tour đang mở danh sách bản build đã đạt
 const T_LABEL = { pass: 'Đạt', warn: 'Lưu ý', fail: 'Lỗi', error: 'Lỗi chạy', need_login: 'Cần đăng nhập', blocked: 'Bị chặn' };
 const COMPAT = { same: 'Cùng phiên bản', forward: 'Tương thích xuôi', backward: 'Tương thích ngược', compatible: 'Tương thích', incompatible: 'Không tương thích', unknown: 'Chưa rõ phiên bản' };
-const R_LABEL = { done: 'Đã làm', found: 'Tìm thấy', skipped: 'Bỏ qua', fail: 'Lỗi', error: 'Lỗi', 'not-run': 'Chưa chạy' };
+// kết quả một bước: trong kiểm thử tự động (fail, error, not-run) và trong lượt chạy của khách (waiting, not-found, …)
+const R_LABEL = { done: 'Đã làm', found: 'Tìm thấy', skipped: 'Bỏ qua', fail: 'Lỗi', error: 'Lỗi', 'not-run': 'Chưa chạy',
+  waiting: 'Đang chờ', 'not-found': 'Không thấy', ambiguous: 'Mơ hồ', 'wrong-screen': 'Sai màn', 'wrong-state': 'Sai hộp thoại', stuck: 'Kẹt' };
 function paintDots() {
   const by = {}; if (tests && tests.last) for (const r of tests.last.results) by[r.tour_id] = r;
   document.querySelectorAll('.dot[data-tour]').forEach(d => { const r = by[d.dataset.tour]; d.className = 'dot' + (r ? ' ' + r.status : ''); d.title = r ? `Kiểm thử gần nhất: ${T_LABEL[r.status]}. ${r.message}` : 'Chưa kiểm thử'; });
@@ -770,9 +772,7 @@ function renderTests() {
 let runs = null, openRunId = null;
 const runCache = {};  // chi tiết từng bước của lượt đã mở
 const RUN_LABEL = { done: 'Xong', stopped: 'Dừng', stuck: 'Kẹt', waiting: 'Đang chờ', 'wrong-layout': 'Sai bố cục', left: 'Rời trang', error: 'Lỗi' };
-const RS_LABEL = { done: 'Đã làm', found: 'Tìm thấy', skipped: 'Bỏ qua', waiting: 'Đang chờ', 'not-found': 'Không thấy', ambiguous: 'Mơ hồ', 'wrong-screen': 'Sai màn', 'wrong-state': 'Sai hộp thoại', stuck: 'Kẹt' };
 const MODE_LABEL = { guide: 'Dẫn từng bước', direct: 'Vào thẳng' };
-const screenOfCtx = c => c ? [c.path, c.dialog, c.step].filter(Boolean).join(' › ') : '';
 const runsQuery = () => `/api/runs?days=${$('rDays').value}&tour=${encodeURIComponent($('rTour').value)}&build=${encodeURIComponent($('rBuild').value)}&status=${$('rState').value}`;
 function fillSelect(sel, items, keep) {
   const cur = sel.value;
@@ -838,8 +838,8 @@ function renderRuns() {
           for (const st of d.steps) {
             const li = el('li');
             const why = [st.score != null ? `khớp ${Math.round(st.score * 100)}%` : '', st.via || '', st.waited != null ? `chờ ${st.waited} ms` : '', st.drift ? 'danh sách đã đổi' : '', st.at != null ? `giây ${st.at}` : ''].filter(Boolean).join(' · ');
-            li.append(el('span', 'num', st.n), el('span', 'res ' + st.result, RS_LABEL[st.result] || st.result), el('span', 'kind ' + st.kind, KIND[st.kind] || st.kind), el('span', 'target', st.name), el('span', 'why', why));
-            const ctx = screenOfCtx(st.ctx), exp = screenOfCtx(st.expected);
+            li.append(el('span', 'num', st.n), el('span', 'res ' + st.result, R_LABEL[st.result] || st.result), el('span', 'kind ' + st.kind, KIND[st.kind] || st.kind), el('span', 'target', st.name), el('span', 'why', why));
+            const ctx = screenOf(st.ctx), exp = screenOf(st.expected);
             if (ctx || exp) { li.classList.add('has-ctx'); li.append(el('div', 'r-ctx', (ctx ? 'Đang ở ' + ctx : '') + (exp && exp !== ctx ? (ctx ? ' · ' : '') + 'cần ở ' + exp : ''))); }
             ol.append(li);
           }
