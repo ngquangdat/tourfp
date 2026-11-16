@@ -548,7 +548,7 @@
   }
 
   // ---------- giao diện ghi và phát ----------
-  const steps = []; // { kind: 'click' | 'hover' | 'input' | 'info', fp, note }
+  const steps = []; // { kind: 'click' | 'hover' | 'input' | 'info', fp, note, title?, desc? } — desc: mô tả hiện dưới lời hướng dẫn
   let recording = false, playing = -1, raf = 0, target = null, token = 0, pending = null, lastCap = 0;
   let hoverEl = null, hoverT = 0, lastDown = 0, popups = [], advancing = false;
   let resumeAt = -1; // bước đang dở của lượt phát gần nhất (-1: không có)
@@ -921,6 +921,8 @@
     target = r.el;
     r.el.scrollIntoView({ block: 'center', inline: 'nearest' });
     rich(tipText, `${head}: ` + (st.note || (st.kind === 'click' ? `Bấm vào «${name}» để tiếp tục` : st.kind === 'hover' ? `Rê chuột vào «${name}»` : st.kind === 'input' ? `Nhập vào ô «${name}», xong bấm Tiếp` : name)));
+    // mô tả thêm của bước (người quản trị nhập ở trang quản trị): hiện ngay dưới lời hướng dẫn
+    if (st.desc) tipText.append(mk('div', 'margin-top:4px;font-size:13px;opacity:.75;white-space:pre-line', String(st.desc)));
     rich(tipMeta, `khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`);
     // bước cuối: nút thành "Kết thúc". Bước có nút Tiếp thì chỉ còn một nút Kết thúc; bước phải tự bấm thì nút Dừng đổi tên.
     const lastStep = i === steps.length - 1, manual = st.kind === 'input' || st.kind === 'info';

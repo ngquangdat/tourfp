@@ -96,6 +96,7 @@ Mở <http://localhost:8000>:
   nhưng trợ lý tìm tour không đề xuất, trang đích mở `?tourfp=<mã>` không lấy được, và kiểm thử tự động bỏ qua
   (trừ khi chọn **Chạy cả tour đang ẩn** ở màn kiểm thử).
 - **Sửa tên**: bấm vào tên một bước để đặt tên hiển thị cho bước đó (để trống thì dùng lại tên tự lấy từ giao diện); nút **Sửa tên tour** đổi tên và mô tả của tour. Tên đã đặt được dùng trong lời hướng dẫn khi phát và trong việc tìm tour của trợ lý.
+- **Mô tả từng bước**: trong chi tiết tour, bấm **+ Mô tả** ở một bước để nhập mô tả (tối đa 300 ký tự); bấm vào mô tả để sửa, để trống là bỏ. Khi chạy tour, mô tả hiện ngay dưới lời hướng dẫn của bước đó.
 
 Cấu hình bằng biến môi trường: `TOURFP_TARGET` là trang web tour chạy trên đó (mặc định `https://tcinvest.tcbs.com.vn`),
 `TOURFP_DATA` là thư mục chứa file SQLite.

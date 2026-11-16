@@ -91,6 +91,12 @@
   .steps { list-style: none; margin: 0; padding: 0; border-radius: 10px; background: var(--bg); }
   .steps li { display: flex; align-items: baseline; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 14px; }
   .steps li:first-child { border-top: 0; }
+  /* mô tả của bước: một dòng riêng dưới tên bước, thẳng hàng với nhãn loại; chưa có thì là nút "+ Mô tả" ở cuối dòng */
+  .steps li.has-desc { flex-wrap: wrap; row-gap: 4px; }
+  .step-desc { flex-basis: 100%; margin-left: 28px; font-size: 13px; color: var(--muted); text-align: left; white-space: pre-line; overflow-wrap: anywhere; }
+  button.step-desc:hover, .add-desc:hover { color: var(--text); }
+  input.step-desc { flex: 1 1 100%; width: auto; min-width: 0; height: 30px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+  .add-desc { flex: none; font-size: 12px; color: var(--faint); }
   .num { color: var(--faint); width: 18px; text-align: right; font-variant-numeric: tabular-nums; flex: none; }
   .kind { flex: none; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; letter-spacing: .01em; }
   .kind.click { background: rgba(229,72,77,.16); color: var(--bad); }
@@ -447,6 +453,33 @@ async function fill(d, t) {
         name.replaceWith(inp); inp.focus(); inp.select();
       };
       li.append(el('span', 'num', i + 1), el('span', 'kind ' + s.kind, KIND[s.kind] || s.kind), name, el('span', 'screen', screenOf(s.fp.ctx)));
+      // mô tả của bước: hiện dưới lời hướng dẫn khi chạy tour. Bấm để thêm hoặc sửa; để trống là bỏ.
+      const editDesc = from => {
+        const inp = el('input', 'step-desc'); inp.maxLength = 300; inp.value = s.desc || ''; inp.placeholder = 'Mô tả hiện dưới hướng dẫn của bước này';
+        let done = false;
+        const finish = async save => {
+          if (done) return; done = true;
+          const desc = inp.value.trim();
+          if (!save || desc === (s.desc || '')) return fill(d, t);
+          try {
+            await api('/api/tours/' + t.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ descs: full.steps.map((x, j) => (j === i ? desc : x.desc || '')) }) });
+            toast(desc ? `Đã lưu mô tả bước ${i + 1}` : `Đã bỏ mô tả bước ${i + 1}`);
+          } catch (e) { toast(e.message); }
+          fill(d, t);
+        };
+        inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.stopPropagation(); finish(false); } };
+        inp.onblur = () => finish(true);
+        li.classList.add('has-desc');
+        if (from.classList.contains('add-desc')) { from.remove(); li.append(inp); } else from.replaceWith(inp);
+        inp.focus();
+      };
+      if (s.desc) {
+        const b = el('button', 'step-desc', s.desc); b.type = 'button'; b.title = 'Bấm để sửa mô tả'; b.onclick = () => editDesc(b);
+        li.classList.add('has-desc'); li.append(b);
+      } else {
+        const b = el('button', 'add-desc', '+ Mô tả'); b.type = 'button'; b.title = 'Thêm mô tả hiện dưới hướng dẫn của bước này'; b.onclick = () => editDesc(b);
+        li.append(b);
+      }
       ol.append(li);
     });
     const foot = el('div', 'detail-foot');

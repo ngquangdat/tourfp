@@ -59,6 +59,7 @@ SHOW_DEFAULT = os.environ.get("TOURFP_TEST_HEADLESS", "0") == "0"
 
 KINDS = {"click", "hover", "input", "info"}
 MAX_STEPS = 200
+DESC_MAX = 300  # độ dài tối đa của mô tả một bước
 MAX_BYTES = 2_000_000  # một tour vài chục bước chỉ khoảng vài chục KB
 
 @asynccontextmanager
@@ -418,12 +419,14 @@ def get_tour(tour_id: str, request: Request) -> dict[str, Any]:
 
 
 class TourPatch(BaseModel):
-    """Sửa tên, mô tả, hoặc tên hiển thị của từng bước. Trường nào không gửi thì giữ nguyên."""
+    """Sửa tên, mô tả, hoặc tên hiển thị và mô tả của từng bước. Trường nào không gửi thì giữ nguyên."""
 
     name: str | None = Field(default=None, max_length=120)
     description: str | None = Field(default=None, max_length=500)
     # tên hiển thị cho từng bước, theo đúng thứ tự bước; chuỗi rỗng hoặc null = dùng lại tên tự lấy từ giao diện
     titles: list[str | None] | None = Field(default=None, max_length=MAX_STEPS)
+    # mô tả thêm cho từng bước, theo đúng thứ tự bước: hiện dưới lời hướng dẫn của bước khi chạy tour; rỗng hoặc null = không có
+    descs: list[str | None] | None = Field(default=None, max_length=MAX_STEPS)
     hidden: bool | None = None  # ẩn / hiện tour
 
 
@@ -440,6 +443,18 @@ def update_tour(tour_id: str, patch: TourPatch) -> dict[str, Any]:
             conn.execute("UPDATE tours SET hidden = ? WHERE id = ?", (int(patch.hidden), tour_id))
         if patch.description is not None:
             conn.execute("UPDATE tours SET description = ? WHERE id = ?", (patch.description.strip(), tour_id))
+        if patch.descs is not None:
+            steps = json.loads(row["steps"])
+            if len(patch.descs) != len(steps):
+                raise HTTPException(422, f"Cần đúng {len(steps)} mô tả, mỗi bước một mô tả")
+            for step, desc in zip(steps, patch.descs):
+                desc = (desc or "").strip()[:DESC_MAX]
+                if desc:
+                    step["desc"] = desc
+                else:
+                    step.pop("desc", None)
+            conn.execute("UPDATE tours SET steps = ? WHERE id = ?", (json.dumps(steps, ensure_ascii=False), tour_id))
+            row = get_row(conn, tour_id)
         if patch.titles is not None:
             steps = json.loads(row["steps"])
             if len(patch.titles) != len(steps):
