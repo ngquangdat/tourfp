@@ -1,4 +1,4 @@
-/* TourFP 0.3.12 — bản thử: ghi tour theo thao tác và khớp phần tử bằng "dấu vân tay".
+/* TourFP — bản thử: ghi tour theo thao tác và khớp phần tử bằng "dấu vân tay".
  * - Không dùng class/id. Không phụ thuộc thư viện.
  * - Chữ lấy từ API (tên, tên kế hoạch…) và chữ số bị loại khỏi dấu vân tay.
  *   Để lọc được, file này phải được nạp TRƯỚC khi app gọi API (đặt trong <head>).

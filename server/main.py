@@ -375,9 +375,12 @@ def _public_url(request: Request) -> str:
 @app.get("/api/config")
 def config(request: Request) -> dict[str, Any]:
     ad, err = adapter()
-    m = re.search(r"TourFP (\d+\.\d+\.\d+)", LIB.read_text(encoding="utf-8")[:200])
-    # version: bản thư viện, để nút TourFP (dấu trang) nạp đúng bản đó từ CDN
-    return {"target": TARGET, "version": m.group(1) if m else "", "public_url": _public_url(request), "ai": ad.name if ad else "off", "ai_model": os.environ.get("TOURFP_AI_MODEL", "") if ad else "", "ai_error": err}
+    try:
+        version = str(json.loads((LIB.parent / "package.json").read_text(encoding="utf-8")).get("version") or "")
+    except (OSError, ValueError):
+        version = ""
+    # version: bản thư viện đã phát hành (package.json), để bookmark TourFP nạp đúng số bản đó từ CDN
+    return {"target": TARGET, "version": version, "public_url": _public_url(request), "ai": ad.name if ad else "off", "ai_model": os.environ.get("TOURFP_AI_MODEL", "") if ad else "", "ai_error": err}
 
 
 @app.get("/api/tours")
