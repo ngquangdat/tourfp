@@ -1023,6 +1023,17 @@
     say('Đang đưa bạn tới màn hình…');
     const finish = () => { say('Đã đưa bạn tới nơi.'); setBtns(null, null); setTimeout(() => { if (alive()) stopPlay('Đã tới nơi'); }, 1600); };
 
+    // Không tự đi tiếp được từ bước i: dừng hẳn (không tô tối, không chặn thao tác) và báo cho người dùng. Phần hướng dẫn bằng chữ
+    // do trang tích hợp hiện (ví dụ trong hội thoại, từ "summary" của trợ lý). "Thử lại" chạy lại từ đầu, "Đóng" tắt.
+    const stuck = i => {
+      directRun++; token++; playing = -1; target = null; atEnd = false; box.style.display = 'none'; cancelAnimationFrame(raf);
+      rich(tipText, 'Chưa thể thực hiện lúc này.\nBạn có thể đọc hướng dẫn trong lúc chờ hệ thống ổn định.');
+      tipMeta.textContent = ''; setBtns('Thử lại', 'Đóng'); bClose.style.display = 'none';
+      choice = { guide: direct, direct: () => stopPlay() };
+      setInfo(`Chưa tới được bước ${i + 1}/${n}`);
+      try { window.dispatchEvent(new CustomEvent('tourfp:stuck', { detail: { step: i + 1, total: n } })); } catch (_) { /* trình duyệt cũ */ }
+    };
+
     // 1) Bước cuối chuyển sang một trang khác và không mở hộp thoại: vào thẳng trang đó bằng đường dẫn.
     const after = last.after;
     if (after && !after.dialog && !after.step && after.path !== last.fp.ctx.path) {
@@ -1053,7 +1064,8 @@
       const r = await waitFind(st.fp, 6000, steps.slice(i + 1, i + 3).map((x, k) => ({ fp: x.fp, idx: i + 1 + k })));
       if (!r || !alive()) return;
       if (r.skipTo != null) { i = r.skipTo - 1; continue; } // bước này đã được làm sẵn
-      if (r.status !== 'ok' || st.kind === 'input') { directRun++; return show(i); } // không tự làm được (không thấy đích, hoặc cần người dùng nhập): dẫn từng bước từ đây
+      if (r.status !== 'ok') return stuck(i); // không thấy đích (màn hình lỗi, dữ liệu chưa tải được): dừng, không treo màn hình
+      if (st.kind === 'input') { directRun++; return show(i); } // không tự làm được (không thấy đích, hoặc cần người dùng nhập): dẫn từng bước từ đây
       if (st.kind === 'hover') hoverOn(r.el);
       else { r.el.scrollIntoView({ block: 'center', inline: 'nearest' }); r.el.click(); }
       await sleep(350);
