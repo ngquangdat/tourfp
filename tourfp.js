@@ -829,9 +829,13 @@
       const fin = r => { if (done) return; done = true; mo.disconnect(); clearInterval(timer); clearTimeout(deb); clearTimeout(stop); res(r); };
       // Hết giờ là trả kết quả, kể cả khi việc dò bị lỗi hay trang bận (API lỗi, màn hình vẽ dở): người gọi luôn nhận được câu trả lời.
       stop = setTimeout(() => fin(my !== token ? null : last || { status: 'not-found', score: 0 }), ms);
+      let rest = 0; // trang nặng: lần dò tốn bao lâu thì nghỉ gấp ba lâu như thế, để app còn vẽ màn và hẹn giờ còn chạy
       function tryIt() {
         if (done) return;
+        const a = performance.now();
+        if (a < rest) { clearTimeout(deb); deb = setTimeout(tryIt, rest - a); return; }
         try { look(); } catch (_) { if (performance.now() - t0 > ms) fin(last || { status: 'not-found', score: 0 }); } // dò lỗi thì coi như chưa thấy
+        const b = performance.now(); rest = b + 3 * (b - a);
       }
       function look() {
         if (my !== token) return fin(null);
@@ -952,11 +956,11 @@
     }
     return first;
   }
+  // dấu hiệu app đã thật sự đổi màn: các component đứng sau router-outlet khác đi (xét cả outlet lồng bên trong khung trang)
+  const pageSig = () => [...document.querySelectorAll('router-outlet')].map(o => o.nextElementSibling ? o.nextElementSibling.tagName : '').join('|');
   // màn đang đứng không có trong tour: đưa về màn của bước 1 rồi phát từ đầu
   const RESUME = 'tourfp:resume';
   function goStart() {
-    // dấu hiệu app đã thật sự đổi màn: component đứng sau router-outlet khác đi
-    const pageSig = () => { const o = document.querySelector('router-outlet'); return o && o.nextElementSibling ? o.nextElementSibling.tagName : ''; };
     const path = steps[0].fp.ctx.path, my = ++token, t0 = performance.now(), before = pageSig(), samePath = location.pathname === path;
     playing = 0; target = null; box.style.display = 'none';
     tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px'; bNext.style.display = 'none';
@@ -1069,7 +1073,17 @@
     for (let i = first; i < n && start < 0; i++) if (sameCtx(steps[i].fp.ctx, c) && sure(steps[i].fp)) start = i; // đang đứng sẵn giữa chặng
     if (start < 0) {
       if (topDialog()) pressEsc();
-      if (location.pathname !== steps[first].fp.ctx.path) navTo(steps[first].fp.ctx.path);
+      if (location.pathname !== steps[first].fp.ctx.path) {
+        // Đổi địa chỉ xong thì app còn phải tải và vẽ màn mới; trong lúc đó màn cũ vẫn nằm trên trang mà đường dẫn đã là màn mới.
+        // Chờ màn mới vẽ xong rồi mới tìm, không thì đang dò đích trên màn cũ. Quá 8 giây vẫn chưa đổi: app không tới được màn đó.
+        const sig0 = pageSig();
+        navTo(steps[first].fp.ctx.path);
+        if (sig0) {
+          for (let t = 0; t < 40 && alive() && pageSig() === sig0; t++) await sleep(200);
+          if (!alive()) return;
+          if (pageSig() === sig0) return stuck(first);
+        }
+      }
       start = first;
     }
     for (let i = start; i < n; i++) {
