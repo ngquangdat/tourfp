@@ -29,13 +29,13 @@ Với Angular, nên khai báo trong `angular.json` để thư viện được n�
 Hoặc không cần cài, nạp bằng một thẻ script qua CDN:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/tourfp@0.3.16/tourfp.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tourfp@0.3.17/tourfp.js"></script>
 ```
 
 Để dùng thử nhanh trên một trang đang mở (trang phải cho phép script từ `cdn.jsdelivr.net`), dán dòng này vào console:
 
 ```js
-document.head.appendChild(Object.assign(document.createElement('script'), { src: 'https://cdn.jsdelivr.net/npm/tourfp@0.3.16/tourfp.js' }));
+document.head.appendChild(Object.assign(document.createElement('script'), { src: 'https://cdn.jsdelivr.net/npm/tourfp@0.3.17/tourfp.js' }));
 ```
 
 Tuỳ chọn, đặt trước khi nạp thư viện:
@@ -43,6 +43,7 @@ Tuỳ chọn, đặt trước khi nạp thư viện:
 ```js
 window.TOURFP_SERVER = 'https://tour.example.com'; // máy chủ lưu tour, mặc định http://localhost:8000
 window.TOURFP_PLAYER = true;                       // chỉ phát, không hiện thanh ghi tour
+window.TOURFP_LOG = false;                         // không gửi lượt chạy của khách về máy chủ (mặc định có gửi)
 ```
 
 ## Dùng thử
@@ -119,6 +120,7 @@ Riêng phần chỉ đọc mở cho khách, không cần mật khẩu:
 | `GET /api/tours/<mã>` | tải một tour theo mã |
 | `GET /api/tours/<mã>/snippet.js` | mã chạy tour (thư viện kèm tour) |
 | `GET /tourfp.js` | thư viện |
+| `POST /api/runs` | thư viện gửi một lượt chạy của khách về (xem "Lượt chạy của khách") |
 
 Trình duyệt chỉ cho trang đích và các trang trong `TOURFP_CORS_ORIGINS` (cách nhau bằng dấu phẩy, mặc định
 `http://localhost:4200`) gọi các đường dẫn này.
@@ -172,6 +174,21 @@ Khi vào thẳng mà một bước không tìm thấy đích sau 6 giây (màn h
 che hay chặn màn hình, và báo "Chưa thể thực hiện lúc này. Bạn có thể đọc hướng dẫn trong lúc chờ hệ thống ổn định.",
 với nút **Thử lại** và **Đóng**. Phần hướng dẫn bằng chữ do trang tích hợp hiện (ví dụ trong hội thoại, lấy từ `summary` của
 trợ lý). Trang nhận thêm sự kiện `tourfp:stuck` trên `window` (`detail: { step, total }`).
+
+### Lượt chạy của khách
+
+Mỗi lần khách chạy một tour (dẫn từng bước hay vào thẳng), thư viện gửi về máy chủ một **lượt chạy** khi lượt kết thúc:
+bản thư viện, bản build của trang đích, từng bước tới đâu (tìm thấy, đã làm, bỏ qua, không thấy…), và kẹt ở bước nào.
+Lượt được gửi khi: tour chạy xong (`done`), khách bấm Dừng (`stopped`), vào thẳng không tới được (`stuck`), dẫn từng bước
+chờ quá 30 giây không thấy đích (`waiting`, gửi sớm, lượt vẫn tiếp tục), sai bố cục (`wrong-layout`), khách rời trang hay tải
+lại giữa chừng (`left`, gửi bằng `sendBeacon`), hoặc thư viện gặp lỗi (`error`).
+
+Ẩn danh: không có gì nhận ra khách, không có chữ trên trang, chỉ có pathname. Không ghi khi đang dùng thanh ghi, khi trình
+duyệt do máy khác điều khiển (kiểm thử tự động), khi chạy thử qua bookmark, hoặc khi đặt `window.TOURFP_LOG = false`.
+Trang nhận thêm sự kiện `tourfp:run` trên `window` (`detail` là chính dữ liệu gửi đi) để ghi vào hệ thống log của mình.
+
+Xem ở màn **Lượt chạy** của trang quản trị: lọc theo khoảng ngày, tour, bản build, trạng thái; khối "Lỗi theo bước" cho biết
+bước nào của tour nào kẹt nhiều nhất trên bản build nào. Lượt chạy giữ 90 ngày (đổi bằng `TOURFP_RUNS_DAYS`).
 
 Chế độ vào thẳng tự bấm thay người dùng. Với tour đi qua thao tác có hậu quả (đặt lệnh, xác nhận giao dịch), nên đặt `to` dừng
 trước các bước đó, hoặc chỉ đưa ra lựa chọn hướng dẫn từng bước.
