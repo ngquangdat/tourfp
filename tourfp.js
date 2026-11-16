@@ -22,7 +22,8 @@
 
   const W = { label: 40, key: 25, attr: 12, icon: 20, tag: 8, role: 5, comp: 15, anchor: 15, pos: 5 };
   const THRESHOLD = 0.6, MARGIN = 0.08, Z = 2147483000;
-  const KEY = ['formcontrolname', 'name', 'data-walkthrough'];
+  // id và data-testid: chỉ nhận giá trị ổn định (bộ lọc ở capture() bỏ id tự sinh như mat-input-3, cdk-overlay-0, ...-12345)
+  const KEY = ['id', 'data-testid', 'formcontrolname', 'name', 'data-walkthrough'], BONUS = new Set(['id', 'data-testid']);
   const SOFT = ['type', 'placeholder', 'aria-label', 'title', 'href', 'panelclass', 'inputmode'];
   const SEMANTIC = 'button,a,input,select,textarea,[role=button],[role=tab],[role=option],[role=menuitem],[role=radio],[role=checkbox],mat-select,mat-radio-button,mat-checkbox,mat-option';
   const LIB = /^(mat|cdk|ng|mdc)-/;
@@ -236,7 +237,7 @@
     const d = topDialog();
     return {
       path: location.pathname,
-      layout: innerWidth < 768 ? 'mobile' : 'desktop', // ngưỡng 768 là giả định, cần chỉnh theo app
+      layout: innerWidth < 1024 ? 'mobile' : 'desktop', // theo breakpoint lg của app (Tailwind: lg = 1024px)
       dialog: d ? dialogKey(d) : '',
       step: d ? activeStep(d) : '',
     };
@@ -347,7 +348,7 @@
       if (own && own.length <= 40 && /\d/.test(own) && hasLetters(own) && !isPersonal(own)) fp.exact = own;
     }
     // thuộc tính khoá: bỏ giá trị sinh tự động (mat-radio-group-0, mat-input-3, chuỗi có nhiều chữ số), vì mỗi lần tải một khác
-    for (const k of KEY) { const v = el.getAttribute(k); if (v && !/\d{3,}/.test(v) && !LIB.test(v) && !/[-_]\d+$/.test(v)) fp.key[k] = v; }
+    for (const k of KEY) { const v = el.getAttribute(k); if (v && !/\d{3,}/.test(v) && !LIB.test(v) && !/[-_]\d+$/.test(v) && !(BONUS.has(k) && idHasData(v))) fp.key[k] = v; }
     for (const k of SOFT) { const v = el.getAttribute(k); if (v && v.length <= 80) fp.attr[k] = k === 'href' ? v.split('?')[0] : stripNum(v); }
     // số phần tử khác trên màn cùng loại với đích (ví dụ ba nút bút chì, các nút MUA của bảng)
     fp.twins = 0;
@@ -387,10 +388,14 @@
         }
       }
     }
-    const k0 = Object.keys(fp.key)[0];
-    if (k0) fp.hint = (fp.comp[0] ? fp.comp[0] + ' ' : '') + fp.tag + '[' + k0 + '="' + CSS.escape(fp.key[k0]) + '"]';
+    fp.hint = hintOf(fp);
     return fp;
   }
+  // id / data-testid ghép từ dữ liệu (btn-mua-TCB, row-ke-hoach-A): một mẩu trùng giá trị API hay thông tin cá nhân là bỏ,
+  // vì người khác, ngày khác sẽ mang id khác
+  const idHasData = v => isData(v) || v.split(/[-_:.\s]+/).some(p => p.length >= 2 && hasLetters(p) && isData(p));
+  // chọn nhanh theo khoá đầu tiên (id trước): một phần tử khớp là lấy luôn, khỏi quét cả trang
+  const hintOf = fp => { const k0 = Object.keys(fp.key)[0]; return k0 ? (fp.comp[0] ? fp.comp[0] + ' ' : '') + fp.tag + '[' + k0 + '="' + CSS.escape(fp.key[k0]) + '"]' : ''; };
 
   // ---------- khớp ----------
   function sim(a, b) {
@@ -422,7 +427,8 @@
     const add = (w, v) => { max += w; got += w * (v === true ? 1 : v || 0); };
     if (fp.soft && fp.soft.length) { if (softHit(fp, e)) add(W.label, 1); } // nhãn mềm: có thì cộng, không có thì không trừ
     else if (fp.label) add(W.label, labelScore(fp, e));
-    for (const k in fp.key) add(W.key, e.getAttribute(k) === fp.key[k]);
+    // id / data-testid: phần tử không còn thuộc tính đó (app bỏ id đi) thì không trừ điểm; mang giá trị khác thì là phần tử khác
+    for (const k in fp.key) { const v = e.getAttribute(k); if (v == null && BONUS.has(k)) continue; add(W.key, v === fp.key[k]); }
     for (const k in fp.attr) add(W.attr, softVal(e, k) === fp.attr[k]);
     if (fp.icon) add(W.icon, iconOf(e) === fp.icon);
     if (fp.tag) add(W.tag, tagOf(e) === fp.tag);
@@ -1153,6 +1159,8 @@
       const fp = st.fp;
       if (!fp) continue;
       if (fp.anchor && isData(fp.anchor)) { fp.anchor = ''; fp.anchorSkip = 0; n++; }
+      // id ghép từ dữ liệu mà lúc ghi chưa biết (API về sau): bỏ khoá đó, dựng lại chọn nhanh theo khoá còn lại
+      for (const k of BONUS) if (fp.key && fp.key[k] && idHasData(fp.key[k])) { delete fp.key[k]; fp.hint = hintOf(fp); n++; }
       // chữ nguyên văn và nhãn lấy từ thuộc tính (title, aria-label) cũng có thể là tên người: bỏ, phần tử vẫn còn các tín hiệu khác
       if (fp.exact && isPersonal(fp.exact)) { fp.exact = ''; n++; }
       if (fp.label && isPersonal(fp.label)) {

@@ -235,4 +235,4 @@ Máy chủ không có đăng nhập; chỉ nên chạy trên `127.0.0.1`.
   tức là phải đặt trong `<head>`. Chữ số luôn bị loại.
 - Lời hướng dẫn từng bước đang là câu mặc định; chưa có AI viết lời hay phân xử khi có nhiều ứng viên ngang điểm.
 - Một số quy tắc đang viết riêng cho Angular Material (lớp phủ `cdk-overlay`, `mat-dialog-container`, `mat-icon`).
-- Ngưỡng tách mobile/desktop (768px) là phỏng đoán. Tour ghi ở bố cục nào chỉ phát được ở bố cục đó.
+- Ngưỡng tách mobile/desktop là 1024px (breakpoint `lg` của app). Tour ghi ở bố cục nào chỉ phát được ở bố cục đó.

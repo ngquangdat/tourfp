@@ -25,7 +25,26 @@ from pathlib import Path
 from urllib.parse import urlparse
 from typing import Any, Callable
 
-VIEWPORT = {"desktop": {"width": 1280, "height": 800}, "mobile": {"width": 390, "height": 844}}
+# Khung máy tính lấy đúng cỡ màn hình của máy chủ (như người dùng mở Chrome hết màn hình); không hỏi được thì lấy Full HD.
+VIEWPORT = {"desktop": {"width": 1920, "height": 1080}, "mobile": {"width": 390, "height": 844}}
+
+
+def _screen_size() -> None:
+    """Đọc cỡ màn hình chính của máy chủ (macOS, qua CoreGraphics) một lần, ghi vào VIEWPORT["desktop"]."""
+    try:
+        import ctypes
+        cg = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+        cg.CGMainDisplayID.restype = ctypes.c_uint32
+        cg.CGDisplayPixelsWide.restype = cg.CGDisplayPixelsHigh.restype = ctypes.c_size_t
+        d = cg.CGMainDisplayID()
+        w, h = int(cg.CGDisplayPixelsWide(d)), int(cg.CGDisplayPixelsHigh(d))
+        if w >= 1024 and h >= 600:
+            VIEWPORT["desktop"] = {"width": w, "height": h}
+    except Exception:
+        pass
+
+
+_screen_size()
 STEP_TIMEOUT_MS = 8000
 
 
@@ -48,9 +67,11 @@ def _same_ctx(a: dict[str, Any] | None, b: dict[str, Any] | None) -> bool:
 async def _launch(pw: Any, profile: Path, headless: bool, lib: Path | None, player: bool = True, fixed_size: bool = True) -> Any:
     profile.mkdir(parents=True, exist_ok=True)
     options: dict[str, Any] = dict(user_data_dir=str(profile), headless=headless, bypass_csp=True)
+    if not headless:
+        options["args"] = ["--start-maximized"]  # cửa sổ có hiện hình thì mở to hết màn hình
     if fixed_size:
-        options["viewport"] = VIEWPORT["desktop"]
-    else:  # cửa sổ tự do co giãn: kéo hẹp cửa sổ là có bố cục mobile
+        options["viewport"] = VIEWPORT["desktop"]  # khung đúng cỡ màn hình máy chủ, kể cả khi chạy ngầm
+    else:  # khung tự do theo cửa sổ: kéo hẹp cửa sổ là có bố cục mobile
         options["no_viewport"] = True
     try:
         ctx = await pw.chromium.launch_persistent_context(channel="chrome", **options)
@@ -250,7 +271,7 @@ async def open_login(target: str, profile: Path, wait_seconds: int = 600) -> Non
     except ImportError as e:
         raise RunnerError("Chưa cài Playwright. Chạy: pip install playwright") from e
     async with async_playwright() as pw:
-        ctx = await _launch(pw, profile, headless=False, lib=None)
+        ctx = await _launch(pw, profile, headless=False, lib=None, fixed_size=False)
         closed = asyncio.Event()
         ctx.on("close", lambda *_: closed.set())
         try:
@@ -323,12 +344,15 @@ async def open_player(url: str, profile: Path, lib: Path, steps: list[dict[str, 
     except ImportError as e:
         raise RunnerError("Chưa cài Playwright. Chạy: pip install playwright") from e
     async with async_playwright() as pw:
-        ctx = await _launch(pw, profile, headless=False, lib=lib, player=True)
+        # tour điện thoại: khung đúng cỡ điện thoại; còn lại mở to hết màn hình như người dùng vẫn xem
+        mobile = layout == "mobile"
+        ctx = await _launch(pw, profile, headless=False, lib=lib, player=True, fixed_size=mobile)
         closed = asyncio.Event()
         ctx.on("close", lambda *_: closed.set())
         try:
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-            await page.set_viewport_size(VIEWPORT.get(layout or "", VIEWPORT["desktop"]))
+            if mobile:
+                await page.set_viewport_size(VIEWPORT["mobile"])
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             started, t0, want = False, time.time(), urlparse(url).path
             while not started and not closed.is_set() and time.time() - t0 < 120:
