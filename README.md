@@ -43,7 +43,7 @@ Tuỳ chọn, đặt trước khi nạp thư viện:
 ```js
 window.TOURFP_SERVER = 'https://tour.example.com'; // máy chủ lưu tour, mặc định http://localhost:8000
 window.TOURFP_PLAYER = true;                       // chỉ phát, không hiện thanh ghi tour
-window.TOURFP_LOG = false;                         // không gửi lượt chạy của khách về máy chủ (mặc định có gửi)
+window.TOURFP_LOG = false;                         // không bắn sự kiện tourfp:run (lượt chạy của khách) nữa
 ```
 
 ## Dùng thử
@@ -120,7 +120,7 @@ Riêng phần chỉ đọc mở cho khách, không cần mật khẩu:
 | `GET /api/tours/<mã>` | tải một tour theo mã |
 | `GET /api/tours/<mã>/snippet.js` | mã chạy tour (thư viện kèm tour) |
 | `GET /tourfp.js` | thư viện |
-| `POST /api/runs` | thư viện gửi một lượt chạy của khách về (xem "Lượt chạy của khách") |
+| `POST /api/runs` | trang tích hợp gửi một lượt chạy của khách về (xem "Lượt chạy của khách") |
 
 Trình duyệt chỉ cho trang đích và các trang trong `TOURFP_CORS_ORIGINS` (cách nhau bằng dấu phẩy, mặc định
 `http://localhost:4200`) gọi các đường dẫn này.
@@ -177,17 +177,27 @@ trợ lý). Trang nhận thêm sự kiện `tourfp:stuck` trên `window` (`detai
 
 ### Lượt chạy của khách
 
-Mỗi lần khách chạy một tour (dẫn từng bước hay vào thẳng), thư viện gửi về máy chủ một **lượt chạy** khi lượt kết thúc:
-bản thư viện, bản build của trang đích, từng bước tới đâu (tìm thấy, đã làm, bỏ qua, không thấy…), và kẹt ở bước nào.
-Lượt được gửi khi: tour chạy xong (`done`), khách bấm Dừng (`stopped`), vào thẳng không tới được (`stuck`), dẫn từng bước
-chờ quá 30 giây không thấy đích (`waiting`, gửi sớm, lượt vẫn tiếp tục), sai bố cục (`wrong-layout`), khách rời trang hay tải
-lại giữa chừng (`left`, gửi bằng `sendBeacon`), hoặc thư viện gặp lỗi (`error`).
+Mỗi lần khách chạy một tour (dẫn từng bước hay vào thẳng), thư viện gom một **lượt chạy**: bản thư viện, bản build của trang
+đích, từng bước tới đâu (tìm thấy, đã làm, bỏ qua, không thấy…), và kẹt ở bước nào. Khi lượt kết thúc, thư viện bắn sự kiện
+`tourfp:run` trên `window`, `detail` là toàn bộ dữ liệu lượt. **Thư viện không tự gọi mạng**: trang tích hợp nghe sự kiện và gửi
+`detail` lên `POST /api/runs` của máy chủ quản trị theo cách của mình — thường qua backend của trang, vì CSP (`connect-src`)
+của trang hiếm khi cho gọi thẳng ra ngoài. Thân gửi là JSON của `detail`, nguyên vẹn; máy chủ ghi đè theo `id` nên gửi lại
+cùng một lượt không tạo bản trùng.
 
-Ẩn danh: không có gì nhận ra khách, không có chữ trên trang, chỉ có pathname. Không ghi khi đang dùng thanh ghi, khi trình
+```js
+window.addEventListener('tourfp:run', e => {
+  fetch('/api/tourfp/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(e.detail), keepalive: true });
+}); // backend của trang chuyển tiếp nguyên thân sang <máy chủ quản trị>/api/runs
+```
+
+Sự kiện bắn khi: tour chạy xong (`done`), khách bấm Dừng (`stopped`), vào thẳng không tới được (`stuck`), dẫn từng bước chờ
+quá 30 giây không thấy đích (`waiting`, bắn sớm, lượt vẫn tiếp tục), sai bố cục (`wrong-layout`), khách rời trang hay tải lại
+giữa chừng (`left`, bắn ở `pagehide` — dùng `keepalive: true` hoặc `sendBeacon` để yêu cầu kịp đi), hoặc thư viện gặp lỗi (`error`).
+
+Ẩn danh: không có gì nhận ra khách, không có chữ trên trang, chỉ có pathname. Không bắn khi đang dùng thanh ghi, khi trình
 duyệt do máy khác điều khiển (kiểm thử tự động), khi chạy thử qua bookmark, hoặc khi đặt `window.TOURFP_LOG = false`.
 Muốn xem một lần chạy thử ở màn Lượt chạy thì chọn **Ghi lượt chạy này** trong hộp Chạy thử (hoặc `start({ log: true })`,
-`?tourfp=<mã>&log=true`); lượt đó được đánh dấu «chạy thử».
-Trang nhận thêm sự kiện `tourfp:run` trên `window` (`detail` là chính dữ liệu gửi đi) để ghi vào hệ thống log của mình.
+`?tourfp=<mã>&log=true`); lượt đó được đánh dấu «chạy thử» — vẫn cần trang có nghe `tourfp:run`.
 
 Xem ở màn **Lượt chạy** của trang quản trị: lọc theo khoảng ngày, tour, bản build, trạng thái; khối "Lỗi theo bước" cho biết
 bước nào của tour nào kẹt nhiều nhất trên bản build nào. Lượt chạy giữ 90 ngày (đổi bằng `TOURFP_RUNS_DAYS`).

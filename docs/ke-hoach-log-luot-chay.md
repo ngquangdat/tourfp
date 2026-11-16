@@ -28,9 +28,10 @@ Quyết định:
 - `GET /api/runs` (lọc tour, build, trạng thái, ngày), `GET /api/runs/{id}`, `GET /api/runs/summary` (tour × build × trạng thái, bước kẹt nhiều nhất) — cần mật khẩu.
 
 ## Thư viện
-- Gom `trace` trong lượt; gửi một lần khi kết thúc, hoặc ở `pagehide` với `status: left`.
-- Tắt bằng `window.TOURFP_LOG = false`. Không ghi khi ghi tour hay chạy thử từ trang quản trị.
-- Bắn `tourfp:run` để app ghi log riêng nếu muốn.
+- Gom `trace` trong lượt; khi kết thúc (hoặc ở `pagehide` với `status: left`) bắn sự kiện `tourfp:run`, `detail` = dữ liệu lượt.
+- Đổi ngày 2026-11-16 (sau khi gặp CSP của trang đích): thư viện **không tự gọi mạng**; trang tích hợp nghe `tourfp:run` và gửi
+  lên `POST /api/runs` qua backend của mình.
+- Tắt bằng `window.TOURFP_LOG = false`. Không bắn khi ghi tour hay chạy thử từ trang quản trị, trừ khi `start({ log: true })`.
 
 ## Trang quản trị
 - Màn «Lượt chạy» (`#runs`): dòng trạng thái, khối lọc, danh sách mở chi tiết từng bước, khối «Lỗi theo bước».

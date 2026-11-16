@@ -7,8 +7,10 @@
  * - Phát: tô sáng đích, chờ người dùng tự bấm rồi mới sang bước sau; tự chờ màn mới hiện ra.
  *   start({ mode: 'guide' | 'direct', to }) chạy tới bước thứ `to`: dẫn từng bước, hoặc thư viện tự đưa tới nơi.
  * - Cấu hình (đặt trước khi nạp): window.TOURFP_SERVER = địa chỉ máy chủ lưu tour; window.TOURFP_PLAYER = true để ẩn thanh ghi.
- * - Lượt chạy của khách (dẫn từng bước hay vào thẳng) được gửi về máy chủ khi kết thúc, ẩn danh; tắt bằng window.TOURFP_LOG = false.
- *   Chạy thử của người quản trị không ghi, trừ khi start({ log: true }) (lượt được đánh dấu "chạy thử").
+ * - Lượt chạy của khách (dẫn từng bước hay vào thẳng): khi kết thúc, thư viện bắn sự kiện tourfp:run trên window với toàn bộ dữ liệu
+ *   lượt (ẩn danh). Thư viện KHÔNG tự gọi mạng; trang tích hợp nghe sự kiện và gửi detail lên POST /api/runs của máy chủ quản trị
+ *   (qua backend của mình, vì CSP của trang thường không cho gọi thẳng). Tắt bằng window.TOURFP_LOG = false.
+ *   Chạy thử của người quản trị không bắn sự kiện, trừ khi start({ log: true }) (lượt được đánh dấu "chạy thử").
  * API: TourFP.record() | stop() | play() | start(opts) | load(steps) | export() | save() | run(id, opts) | ask(query)
  *      | capture(el) | find(fp) | showPanel(on) | destroy()
  */
@@ -626,10 +628,11 @@
   if (PLAYER) panel.style.display = 'none';
 
   // ---------- ghi lại lượt chạy của khách ----------
-  // Một lượt = từ lúc start()/play()/direct() tới khi xong, khách bấm Dừng, kẹt, hay rời trang. Khi kết thúc, gửi về máy chủ
-  // (POST /api/runs): bản thư viện, bản build của app, từng bước tới đâu, kẹt ở đâu. Ẩn danh: không có gì nhận ra khách, không
-  // có chữ trên trang, chỉ pathname. Không ghi khi: window.TOURFP_LOG = false; đang dùng thanh ghi (người quản trị); trình duyệt
-  // do máy khác điều khiển (kiểm thử tự động); chạy thử qua bookmark.
+  // Một lượt = từ lúc start()/play()/direct() tới khi xong, khách bấm Dừng, kẹt, hay rời trang. Khi kết thúc, thư viện bắn sự kiện
+  // tourfp:run (detail = dữ liệu lượt: bản thư viện, bản build của app, từng bước tới đâu, kẹt ở đâu). Thư viện không tự gọi mạng:
+  // trang tích hợp nghe sự kiện rồi gửi lên POST /api/runs của máy chủ quản trị theo cách của mình (CSP của trang thường chặn gọi
+  // thẳng ra ngoài). Ẩn danh: không có gì nhận ra khách, không có chữ trên trang, chỉ pathname. Không ghi khi: window.TOURFP_LOG
+  // = false; đang dùng thanh ghi (người quản trị); trình duyệt do máy khác điều khiển (kiểm thử tự động); chạy thử qua bookmark.
   const TRIP_KEY = 'tourfp:trip';
   // forceLog: người quản trị chạy thử có chọn "Ghi lượt chạy này" (start({ log: true })): ghi dù là bookmark hay Playwright, đánh dấu "chạy thử"
   let trip = null, tourMeta = { id: '', name: '' }, viaBookmark = false, forceLog = false;
@@ -676,13 +679,9 @@
     // bản build của app có thể chưa đọc xong (fetch ngsw.json): chờ tối đa một nhịp
     Promise.race([appVersion(), new Promise(r => setTimeout(r, 1000))]).then(a => { if (a) t.app = a; tripSend(t); }).catch(() => tripSend(t));
   }
+  // Giao lượt cho trang tích hợp. detail là bản sao, trang có sửa cũng không ảnh hưởng lượt đang chạy (lượt "đang chờ" còn gửi tiếp).
   function tripSend(t) {
-    const body = JSON.stringify(t);
-    try { window.dispatchEvent(new CustomEvent('tourfp:run', { detail: JSON.parse(body) })); } catch (_) { /* trình duyệt cũ */ }
-    const url = SERVER + '/api/runs';
-    // text/plain để trình duyệt không phải hỏi trước (CORS); sendBeacon vẫn gửi được khi khách đang rời trang
-    try { if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([body], { type: 'text/plain' }))) return; } catch (_) { /* thử cách dưới */ }
-    try { fetch(url, { method: 'POST', body, headers: { 'Content-Type': 'text/plain' }, keepalive: true }).catch(() => {}); } catch (_) { /* không gửi được thì thôi */ }
+    try { window.dispatchEvent(new CustomEvent('tourfp:run', { detail: JSON.parse(JSON.stringify(t)) })); } catch (_) { /* trình duyệt cũ */ }
   }
   // thư viện tự tải lại trang (về màn bắt đầu): giữ lượt qua lần tải, không tính là khách rời trang
   const tripStash = () => { if (!trip) return; try { sessionStorage.setItem(TRIP_KEY, JSON.stringify(trip)); } catch (_) {} trip = null; };

@@ -629,9 +629,9 @@ def _clean_app(app: dict[str, Any]) -> dict[str, Any]:
 
 @app.post("/api/runs", status_code=204)
 async def run_report(request: Request) -> Response:
-    """Thư viện gửi một lượt chạy (có thể gửi lại cùng mã khi trạng thái đổi; bản sau ghi đè bản trước).
+    """Trang tích hợp gửi một lượt chạy (detail của sự kiện tourfp:run; gửi lại cùng mã khi trạng thái đổi thì bản sau ghi đè).
 
-    Thân gửi bằng sendBeacon ở dạng text/plain (để trình duyệt không phải hỏi trước CORS), nên tự đọc JSON."""
+    Thân có thể là application/json hay text/plain (sendBeacon), nên tự đọc JSON."""
     raw = await request.body()
     if len(raw) > RUN_MAX_BYTES:
         raise HTTPException(413, "Lượt chạy quá dài")
