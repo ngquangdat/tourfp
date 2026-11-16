@@ -158,14 +158,15 @@ TourFP.start({ mode: 'direct', to: 3 });  // chạy tour đang nạp: vào thẳ
 ```
 
 Gửi kèm `layout` (`desktop` | `mobile`) để ưu tiên tour đúng bố cục, và `build` (bản build của trang đích mà người dùng
-đang mở, ví dụ `main-35REP24N`, lấy từ `TourFP.appVersion().build`) để chỉ nhận tour đã kiểm thử đạt trên đúng bản build đó:
+đang mở, ví dụ `main-35REP24N`, lấy từ `TourFP.appVersion().build`) để loại tour đã kiểm thử lỗi trên đúng bản build đó:
 
 ```json
 { "query": "tôi muốn nộp tiền", "layout": "mobile", "build": "main-35REP24N" }
 ```
 
-Không gửi `build` thì không lọc. Tour được coi là đạt trên một bản build khi lần kiểm thử tự động gần nhất trên bản đó
-cho kết quả Đạt hoặc Lưu ý. Ở màn Kiểm thử tự động, mở chi tiết một tour rồi bấm **Bản build đã đạt** để xem danh sách.
+Không gửi `build` thì không lọc. Chỉ tour mà lần kiểm thử tự động gần nhất trên bản build đó cho kết quả Lỗi mới bị loại;
+tour chưa kiểm thử trên bản đó, hoặc Đạt / Lưu ý, vẫn được trả. Ở màn Kiểm thử tự động, mở chi tiết một tour rồi bấm
+**Bản build đã đạt** để xem tour đã đạt trên những bản nào.
 
 Khi vào thẳng mà một bước không tìm thấy đích sau 6 giây (màn hình lỗi, dữ liệu chưa tải được), thư viện dừng hẳn, không
 che hay chặn màn hình, và báo "Chưa thể thực hiện lúc này. Bạn có thể đọc hướng dẫn trong lúc chờ hệ thống ổn định.",

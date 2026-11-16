@@ -486,7 +486,7 @@ class AssistIn(BaseModel):
     query: str = Field(min_length=1, max_length=500)
     layout: Literal["desktop", "mobile"] | None = None
     # bản build của trang đích mà người dùng đang mở (ví dụ "main-35REP24N", lấy từ TourFP.appVersion().build).
-    # Có gửi: chỉ trả tour đã kiểm thử đạt trên đúng bản build đó. Không gửi: không lọc.
+    # Có gửi: bỏ tour đã kiểm thử LỖI trên đúng bản build đó; tour chưa kiểm thử trên bản đó vẫn trả. Không gửi: không lọc.
     build: str | None = Field(default=None, max_length=80)
 
     @field_validator("query")
@@ -505,16 +505,15 @@ def assist_route(body: AssistIn) -> dict[str, Any]:
         rows = conn.execute("SELECT * FROM tours WHERE hidden = 0 ORDER BY created_at DESC").fetchall()
         build = (body.build or "").strip()
         if build:
-            ok = {r["tour_id"] for r in conn.execute(
-                f"SELECT tour_id FROM tour_builds WHERE build = ? AND status IN ({','.join('?' * len(PASSED))})", (build, *PASSED))}
-            rows = [r for r in rows if r["id"] in ok]
+            bad = {r["tour_id"] for r in conn.execute("SELECT tour_id FROM tour_builds WHERE build = ? AND status = 'fail'", (build,))}
+            rows = [r for r in rows if r["id"] not in bad]
     tours = [{**summary(r), "steps": json.loads(r["steps"])} for r in rows]
     ad, err = adapter()
     result = assist.find_tour(body.query, body.layout, tours, ad, TARGET)
     if build:
         result["build"] = build
         if not tours:
-            result["reason"] = "Chưa có tour nào đã kiểm thử đạt trên bản build này."
+            result["reason"] = "Mọi tour đều lỗi khi kiểm thử trên bản build này."
     if err:
         result["ai_error"] = err
     return result
