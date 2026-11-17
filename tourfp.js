@@ -1098,7 +1098,8 @@
     if (window.TOURFP_MATCH_INFO === true) setMeta(`khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`, true); // dòng kỹ thuật, mặc định ẩn
     else setMeta('');
     const lastStep = i === steps.length - 1;
-    setBtns(lastStep ? 'ĐÃ HIỂU' : 'TIẾP TỤC', prevLabel(i), badge);
+    // bước di chuyển chuột không có nút Tiếp tục: người dùng tự rê chuột, menu bật ra là sang bước sau
+    setBtns(lastStep ? 'ĐÃ HIỂU' : st.kind === 'hover' ? null : 'TIẾP TỤC', prevLabel(i), badge);
     // bước rê chuột: sang bước sau ngay khi đích của bước sau hiện ra
     if (st.kind === 'hover' && nx) {
       if (back) {
