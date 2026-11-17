@@ -6,7 +6,8 @@
  *        Alt+bấm = bước "chỉ tô sáng" (cú bấm bị chặn).
  * - Phát: tô sáng đích, chờ người dùng tự bấm rồi mới sang bước sau; tự chờ màn mới hiện ra.
  *   start({ mode: 'guide' | 'direct', to }) chạy tới bước thứ `to`: dẫn từng bước, hoặc thư viện tự đưa tới nơi.
- * - Cấu hình (đặt trước khi nạp): window.TOURFP_SERVER = địa chỉ máy chủ lưu tour; window.TOURFP_PLAYER = true để ẩn thanh ghi.
+ * - Cấu hình (đặt trước khi nạp): window.TOURFP_SERVER = địa chỉ máy chủ lưu tour; window.TOURFP_PLAYER = true để ẩn thanh ghi;
+ *   window.TOURFP_MATCH_INFO = false để không hiện dòng kỹ thuật "khớp 93% · scan · 7 ms" dưới lời hướng dẫn.
  * - Lượt chạy của khách (dẫn từng bước hay vào thẳng): khi kết thúc, thư viện bắn sự kiện tourfp:run trên window với toàn bộ dữ liệu
  *   lượt (ẩn danh). Thư viện KHÔNG tự gọi mạng; trang tích hợp nghe sự kiện và gửi detail lên POST /api/runs của máy chủ quản trị
  *   (qua backend của mình, vì CSP của trang thường không cho gọi thẳng). Tắt bằng window.TOURFP_LOG = false.
@@ -1019,10 +1020,10 @@
     resumeAt = i;
     target = r.el;
     r.el.scrollIntoView({ block: 'center', inline: 'nearest' });
-    rich(tipText, `${head}: ` + (st.note || (st.kind === 'click' ? `Bấm vào «${name}» để tiếp tục` : st.kind === 'hover' ? `Rê chuột vào «${name}»` : st.kind === 'input' ? `Nhập vào ô «${name}», xong bấm Tiếp` : name)));
+    rich(tipText, `${head}: ` + (st.note || (st.kind === 'click' ? `Bấm vào «${name}» để tiếp tục` : st.kind === 'hover' ? `Di chuyển chuột vào «${name}»` : st.kind === 'input' ? `Nhập vào ô «${name}», xong bấm Tiếp` : name)));
     // mô tả thêm của bước (người quản trị nhập ở trang quản trị): hiện ngay dưới lời hướng dẫn
     if (st.desc) tipText.append(mk('div', 'margin-top:4px;font-size:13px;opacity:.75;white-space:pre-line', String(st.desc)));
-    rich(tipMeta, `khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`);
+    if (window.TOURFP_MATCH_INFO !== false) rich(tipMeta, `khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`); // dòng kỹ thuật, trang tích hợp tắt được
     // bước cuối: nút thành "Kết thúc". Bước có nút Tiếp thì chỉ còn một nút Kết thúc; bước phải tự bấm thì nút Dừng đổi tên.
     const lastStep = i === steps.length - 1, manual = st.kind === 'input' || st.kind === 'info';
     if (lastStep) setBtns(manual ? 'Kết thúc' : null, manual ? null : 'Kết thúc');
@@ -1466,6 +1467,11 @@
 
   // mở trang với ?tourfp=<mã>[&mode=guide|direct][&to=<bước>]: tải tour đó từ máy chủ và chạy luôn
   const qs = new URLSearchParams(location.search), wanted = qs.get('tourfp');
-  if (wanted && !steps.length) run(wanted, { mode: qs.get('mode'), to: qs.get('to'), log: qs.get('log') }).catch(() => setInfo('Không tải được tour ' + wanted));
+  // Không tải được (máy chủ không gọi được, CSP của trang chặn, mã tour sai): báo ngay trên trang, vì thanh ghi đang ẩn ở chế độ phát
+  if (wanted && !steps.length) run(wanted, { mode: qs.get('mode'), to: qs.get('to'), log: qs.get('log') }).catch(() => {
+    setInfo('Không tải được tour ' + wanted);
+    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
+    rich(tipText, 'Không tải được tour hướng dẫn.'); tipMeta.textContent = ''; setBtns(null, null); bClose.style.display = ''; choice = {};
+  });
   if (window.TOURFP_BOOKMARK) { delete window.TOURFP_BOOKMARK; bookmark(); }
 })();

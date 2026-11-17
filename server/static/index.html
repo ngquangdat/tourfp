@@ -363,8 +363,8 @@
   </div>
   <div class="play-row"><div>Chạy trên máy này<small>Trang mở ra, bấm bookmark TourFP là tour chạy · <button type="button" class="btn plain link" data-bm>Cài bookmark TourFP</button></small></div><button class="btn primary" id="runHere" type="button">Mở trang</button></div>
   <div class="play-row only-local"><div>Chạy bằng Chrome của máy chủ<small id="runWhat"></small></div><button class="btn gray" id="runPlay" type="button">Chạy</button></div>
+  <div class="play-row"><div>Trang đã cài sẵn thư viện: gửi đường dẫn này<small><code id="runParam"></code></small></div><button class="btn gray" id="runLink" type="button">Chép</button></div>
   <p class="meta" id="runNote"></p>
-  <p style="margin:0 0 14px;font-size:13px">Nếu trang đã cài sẵn thư viện, chỉ cần mở <code id="runParam" style="font:12px ui-monospace,Menlo,monospace;color:var(--code)"></code></p>
   <div class="sheet-foot"><button class="btn gray" data-close>Xong</button></div>
 </div></div>
 
@@ -399,7 +399,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const KIND = { click: 'Bấm', hover: 'Rê chuột', input: 'Nhập', info: 'Tô sáng' };
+const KIND = { click: 'Bấm', hover: 'Di chuyển chuột', input: 'Nhập', info: 'Tô sáng' };
 const CHEV = '<svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>';
 let tours = [], openId = null, pending = null;
 
@@ -553,6 +553,7 @@ function openRun(t, opt) {
   show('runSheet'); pollPlay();
 }
 document.querySelectorAll('#runMode button').forEach(b => b.onclick = () => { runOpt.mode = b.dataset.mode; syncRun(); });
+$('runLink').onclick = async () => toast(await copyText($('runParam').textContent) ? 'Đã chép đường dẫn chạy tour' : 'Trình duyệt không cho chép');
 $('runTo').oninput = () => { const v = parseInt($('runTo').value, 10); if (v >= 1 && v <= pending.step_count) { runOpt.to = v; syncRun(); } };
 
 // ---- trợ lý tìm tour

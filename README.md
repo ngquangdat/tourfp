@@ -44,6 +44,7 @@ Tuỳ chọn, đặt trước khi nạp thư viện:
 window.TOURFP_SERVER = 'https://tour.example.com'; // máy chủ lưu tour, mặc định http://localhost:8000
 window.TOURFP_PLAYER = true;                       // chỉ phát, không hiện thanh ghi tour
 window.TOURFP_LOG = false;                         // không bắn sự kiện tourfp:run (lượt chạy của khách) nữa
+window.TOURFP_MATCH_INFO = false;                  // ẩn dòng kỹ thuật "khớp 93% · scan · 7 ms" dưới lời hướng dẫn
 ```
 
 ## Dùng thử
@@ -54,7 +55,7 @@ Sau khi nạp thư viện (xem Cài đặt), một thanh điều khiển hiện 
 - **● Ghi** — thao tác như bình thường, mỗi cú bấm thành một bước và vẫn chạy thật.
   - Bấm vào phần tử làm đổi màn hoặc đổi nội dung: bước "bấm" (khi phát, người dùng phải tự bấm).
   - Bấm vào phần tử không bấm được, hoặc bấm mà trang không đổi gì: bước "tô sáng" (khi phát có nút Tiếp).
-  - Bấm vào mục trong menu bật ra do rê chuột: tự chèn bước "rê chuột" phía trước.
+  - Bấm vào mục trong menu bật ra do di chuyển chuột: tự chèn bước "di chuyển chuột" phía trước.
   - Giữ Alt khi bấm: ghi bước "tô sáng" và chặn cú bấm.
 - **▶ Phát** — tô sáng từng đích, chặn bấm ra ngoài đích, tự chờ màn mới hiện ra.
   - Đang ở màn nào thì phát từ bước của màn đó; màn không có trong tour thì đưa về màn đầu.
@@ -103,7 +104,9 @@ Cấu hình bằng biến môi trường: `TOURFP_TARGET` là trang web tour ch�
 `TOURFP_DATA` là thư mục chứa file SQLite.
 
 Khi thư viện được cài sẵn trong app và app cho phép gọi tới máy chủ này, nút **Lưu** gửi thẳng tour lên máy chủ, và mở
-`<trang>?tourfp=<mã tour>` sẽ tải tour đó về rồi phát. Địa chỉ máy chủ đặt bằng `window.TOURFP_SERVER` trước khi nạp thư viện
+`<trang>?tourfp=<mã tour>` sẽ tải tour đó về rồi phát (thư viện gọi `GET {TOURFP_SERVER}/api/tours/<mã>`; trang có CSP chặn gọi
+ra ngoài thì đặt `TOURFP_SERVER` tới một đường proxy cùng gốc do backend của trang chuyển tiếp, nếu không sẽ báo «Không tải được
+tour hướng dẫn»). Địa chỉ máy chủ đặt bằng `window.TOURFP_SERVER` trước khi nạp thư viện
 (mặc định `http://localhost:8000`). Trang TCInvest hiện chặn mọi kết nối ra ngoài danh sách cho phép của nó, nên với trang đó
 phải dùng cách dán JSON và dán mã chạy thử.
 

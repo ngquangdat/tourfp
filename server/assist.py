@@ -63,7 +63,7 @@ def screen_of(step: dict[str, Any]) -> str:
     return " > ".join(p for p in parts if p)
 
 
-VERB = {"click": "Bấm", "hover": "Rê chuột vào", "input": "Nhập vào ô", "info": "Xem"}
+VERB = {"click": "Bấm", "hover": "Di chuyển chuột vào", "input": "Nhập vào ô", "info": "Xem"}
 
 
 def _spoken(step: dict[str, Any]) -> tuple[str, str]:
