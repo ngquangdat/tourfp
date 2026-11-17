@@ -25,7 +25,7 @@
   const outside = f => function () { const z = rootZone(); return z && window.Zone.current !== z ? z.run(f, this, arguments) : f.apply(this, arguments); };
   if (window.TourFP) window.TourFP.destroy();
 
-  const VERSION = '0.3.23';
+  const VERSION = '0.3.24';
   const W = { label: 40, key: 25, attr: 12, icon: 20, tag: 8, role: 5, comp: 15, anchor: 15, pos: 5 };
   const THRESHOLD = 0.6, MARGIN = 0.08, Z = 2147483000;
   // id và data-testid: chỉ nhận giá trị ổn định (bộ lọc ở capture() bỏ id tự sinh như mat-input-3, cdk-overlay-0, ...-12345)
