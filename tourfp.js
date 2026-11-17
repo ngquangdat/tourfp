@@ -589,6 +589,69 @@
       return;
     }
   });
+  // ---------- menu rê chuột thuần CSS ----------
+  // Menu kiểu ".tab:hover .dropdown { display: block }" không thêm phần tử nào vào trang nên bộ theo dõi ở trên không thấy.
+  // Đọc các quy tắc ":hover" của trang để biết phần tử nào chỉ hiện ra khi rê chuột lên phần tử khác.
+  const SHOWN = ['display', 'visibility', 'opacity', 'pointer-events', 'max-height', 'height', 'transform', 'clip-path'];
+  let hoverRules = null, hoverSheets = -1;
+  function hoverSelectors() {
+    if (hoverRules && hoverSheets === document.styleSheets.length) return hoverRules;
+    hoverRules = []; hoverSheets = document.styleSheets.length;
+    const walk = rules => {
+      for (const r of rules) {
+        if (r.cssRules && r.cssRules.length) walk(r.cssRules); // @media, @supports, quy tắc lồng nhau
+        const sel = r.selectorText, st = r.style;
+        if (!sel || !st || sel.indexOf(':hover') < 0 || sel.indexOf('::') >= 0) continue;
+        const d = st.getPropertyValue('display'), v = st.getPropertyValue('visibility'), o = st.getPropertyValue('opacity');
+        if (!((d && d !== 'none') || v === 'visible' || (o && parseFloat(o) >= 0.99))) continue; // chỉ quy tắc làm thứ gì đó hiện ra
+        for (const part of sel.split(',')) {
+          const i = part.lastIndexOf(':hover');
+          if (i < 0 || !/[\s>+~]/.test(part.slice(i + 6).trim() ? part.slice(i + 6) : '')) continue; // ":hover" trên chính phần tử: chỉ đổi màu
+          hoverRules.push({ full: part.replace(/:hover/g, '').trim(), host: part.slice(0, i).replace(/:hover/g, '').trim() || '*', style: st });
+        }
+      }
+    };
+    for (const sh of document.styleSheets) { try { walk(sh.cssRules); } catch (_) {} } // file CSS khác tên miền không đọc được: bỏ qua
+    return hoverRules;
+  }
+  const safeMatch = (e, sel) => { try { return e.matches(sel); } catch (_) { return false; } };
+  // el nằm trong phần chỉ hiện ra khi rê chuột: trả về phần tử phải rê lên (phần nhìn thấy được lúc chưa rê)
+  function hoverHost(el) {
+    for (let a = el, k = 0; a && a !== document.body && k < 8; a = a.parentElement, k++) for (const r of hoverSelectors()) {
+      if (!safeMatch(a, r.full)) continue;
+      let h = null;
+      try { h = a.parentElement && a.parentElement.closest(r.host); } catch (_) {}
+      if (h && !h.matches(':hover')) h = null;
+      if (!h) for (let sib = a.previousElementSibling, n = 0; sib && n < 3; sib = sib.previousElementSibling, n++) if (safeMatch(sib, r.host)) { h = sib; break; }
+      if (!h || h === document.body || h === el || isUi(h)) continue;
+      const kids = [...h.children].filter(c => !c.contains(a) && visible(c) && norm(c.textContent));
+      return kids.length === 1 ? kids[0] : h;
+    }
+    return null;
+  }
+  // Sự kiện chuột giả lập không bật được ":hover" của CSS. Khi thư viện tự rê chuột (vào thẳng màn hình), áp thẳng các thuộc tính
+  // của quy tắc ":hover" lên phần được nó làm hiện ra; trả lại như cũ sau cú bấm kế tiếp hoặc khi tour dừng.
+  let forced = [];
+  function cssUnhover() {
+    for (const [e, old] of forced) { if (old == null) e.removeAttribute('style'); else e.setAttribute('style', old); }
+    forced = [];
+  }
+  function cssHover(el) {
+    cssUnhover();
+    const hosts = [];
+    for (let p = el, k = 0; p && p !== document.body && k < 4; p = p.parentElement, k++) hosts.push(p);
+    for (const r of hoverSelectors()) for (const h of hosts) {
+      if (!safeMatch(h, r.host)) continue;
+      let subs = [];
+      try { subs = [...(h.parentElement || h).querySelectorAll(r.full)].slice(0, 20); } catch (_) {}
+      for (const s of subs) {
+        if (s === h || isUi(s) || !(h.contains(s) || s.parentElement === h.parentElement)) continue;
+        if (!forced.some(f => f[0] === s)) forced.push([s, s.getAttribute('style')]);
+        for (const pr of SHOWN) { const val = r.style.getPropertyValue(pr); if (val) s.style.setProperty(pr, val, 'important'); }
+      }
+    }
+    if (forced.length) addEventListener('click', () => setTimeout(cssUnhover, 400), { capture: true, once: true });
+  }
   const mk = (tag, css, text) => { const e = document.createElement(tag); e.setAttribute('data-tourfp-ui', ''); e.style.cssText = css; if (text) e.textContent = text; return e; };
   const FONT = 'font:13px/1.4 system-ui,sans-serif;';
   const NARROW = innerWidth < 480;
@@ -856,6 +919,11 @@
     // đích nằm trong menu bật ra do rê chuột: chèn bước "rê chuột" vào trước
     const pop = popups.find(p => !p.used && p.node.isConnected && p.node.contains(el));
     if (pop) { for (const p of popups) if (p.node.contains(el) || pop.node.contains(p.node)) p.used = true; steps.push({ kind: 'hover', fp: pop.trig, note: '' }); }
+    else {
+      // menu rê chuột thuần CSS: không có phần tử nào được thêm vào trang, phải đọc quy tắc ":hover"
+      const host = hoverHost(el), last = steps[steps.length - 1];
+      if (host && !(last && last.kind === 'hover' && last.el === host)) { const hs = { kind: 'hover', fp: capture(host), note: '' }; Object.defineProperty(hs, 'el', { value: host, enumerable: false }); steps.push(hs); }
+    }
     const step = { kind, fp, note: '' };
     steps.push(step);
     // bước đầu của tour mang phiên bản trang lúc ghi
@@ -960,6 +1028,7 @@
   }
   function stop() { recording = false; pending = null; popMo.disconnect(); bRec.textContent = '● Ghi'; bRec.style.background = '#2a2f3a'; target = null; box.style.display = 'none'; cancelAnimationFrame(raf); setInfo(); }
   function stopPlay(msg) {
+    cssUnhover();
     tripEnd('stopped'); coverOff();
     token++; showId++; directRun++; playing = -1; atEnd = false; choice = null; resumeAt = -1;
     if (fullSteps) { steps.length = 0; steps.push(...fullSteps); fullSteps = null; }
@@ -1272,6 +1341,7 @@
     for (const p of chain) p.dispatchEvent(new MouseEvent('mouseenter', { ...at, bubbles: false }));
     el.dispatchEvent(new MouseEvent('pointermove', at));
     el.dispatchEvent(new MouseEvent('mousemove', at));
+    cssHover(el);
   }
   function clickOn(el) {
     if (!el) return;
