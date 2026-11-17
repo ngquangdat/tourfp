@@ -617,29 +617,33 @@
   };
   panel.addEventListener('pointerup', endDrag);
   panel.addEventListener('pointercancel', endDrag);
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const mkSvg = (w, h, vb, d, fill) => {
+    const s = document.createElementNS(SVG_NS, 'svg');
+    s.setAttribute('width', w); s.setAttribute('height', h); s.setAttribute('viewBox', vb);
+    s.setAttribute('fill', 'none'); s.style.display = 'block';
+    const p = document.createElementNS(SVG_NS, 'path');
+    p.setAttribute('d', d); p.setAttribute('fill', fill);
+    s.append(p);
+    return s;
+  };
+  const CARD_FONT = "'Roboto',system-ui,-apple-system,sans-serif";
   const box = mk('div', `position:fixed;z-index:${Z};pointer-events:none;border:2px solid #ffb020;border-radius:6px;display:none;transition:all .08s`);
-  const tip = mk('div', `position:fixed;z-index:${Z + 1};width:320px;max-width:calc(100vw - 24px);box-sizing:border-box;background:#fff;color:#1f2329;border-radius:16px;padding:16px 20px 20px;display:none;pointer-events:none;filter:drop-shadow(0 6px 20px rgba(0,0,0,.32));${FONT}`); // chuột đi xuyên qua chú thích để menu rê chuột bên dưới không tự đóng
-  const tipArrow = mk('div', 'position:absolute;width:14px;height:14px;background:#fff;transform:rotate(45deg);border-radius:2px;display:none;pointer-events:none');
-  const tipHead = mk('div', 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;min-height:28px');
-  const tipStep = mk('span', 'background:#f2f3f5;color:#222;font-size:14px;font-weight:500;font-variant-numeric:tabular-nums;padding:4px 10px;border-radius:8px;line-height:1.25;display:none');
-  const bClose = mk('button', 'all:unset;box-sizing:border-box;pointer-events:auto;cursor:pointer;color:#3c4043;width:28px;height:28px;margin-left:auto;display:flex;align-items:center;justify-content:center;border-radius:6px');
+  const tip = mk('div', `position:fixed;z-index:${Z + 1};width:200px;max-width:calc(100vw - 24px);box-sizing:border-box;background:#fff;color:#262626;border-radius:8px;padding:12px;display:none;pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.2));font:400 14px/18px ${CARD_FONT}`); // chuột đi xuyên qua chú thích để menu rê chuột bên dưới không tự đóng
+  const tipArrow = mk('div', 'position:absolute;width:31px;height:20px;display:none;pointer-events:none;transform-origin:center');
+  tipArrow.append(mkSvg('31', '20', '0 0 30.6265 20.1325', 'M1.08149 6.7269C-1.30181 4.16922 0.511944 0 4.00792 0H26.6186C30.1145 0 31.9283 4.16922 29.545 6.7269L18.2397 18.8594C16.6579 20.5569 13.9685 20.5569 12.3868 18.8594L1.08149 6.7269Z', '#fff'));
+  const tipHead = mk('div', 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px');
+  const tipStep = mk('span', `background:#f5f5f5;color:#262626;height:18px;padding:0 4px;border-radius:4px;font:400 12px/14px ${CARD_FONT};font-variant-numeric:tabular-nums;align-items:center;justify-content:center;display:none`);
+  const bClose = mk('button', 'all:unset;box-sizing:border-box;pointer-events:auto;cursor:pointer;width:20px;height:20px;margin-left:auto;display:flex;align-items:center;justify-content:center;border-radius:4px');
   bClose.setAttribute('aria-label', 'Đóng');
-  {
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', '18'); svg.setAttribute('height', '18'); svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '2.2'); svg.setAttribute('stroke-linecap', 'round');
-    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    p.setAttribute('d', 'M18 6L6 18M6 6l12 12');
-    svg.append(p);
-    bClose.append(svg);
-  }
+  bClose.append(mkSvg('20', '20', '0 0 20 20', 'M5.87491 4.6964C5.54948 4.37096 5.02184 4.37095 4.6964 4.69638C4.37096 5.02181 4.37095 5.54945 4.69638 5.87489L8.82123 9.99987L4.69653 14.1246C4.3711 14.45 4.3711 14.9776 4.69653 15.3031C5.02197 15.6285 5.54961 15.6285 5.87504 15.3031L9.99972 11.1784L14.1243 15.3031C14.4498 15.6286 14.9774 15.6286 15.3028 15.3031C15.6283 14.9777 15.6283 14.4501 15.3029 14.1246L11.1782 9.99989L15.3031 5.87499C15.6286 5.54955 15.6286 5.02191 15.3031 4.69648C14.9777 4.37104 14.4501 4.37104 14.1246 4.69648L9.99974 8.82136L5.87491 4.6964Z', '#434343'));
   tipHead.append(tipStep, bClose);
-  const tipText = mk('div', 'font-size:16px;line-height:1.45;color:#1f2329;white-space:pre-line');
+  const tipText = mk('div', `font:400 14px/18px ${CARD_FONT};color:#262626;word-break:break-word;white-space:pre-line`);
   const tipMeta = mk('div', 'margin-top:8px;font-size:11px;opacity:.55;display:none');
-  const tipFoot = mk('div', 'display:none;gap:12px;align-items:center;justify-content:flex-end;margin-top:18px');
-  const btnCardCss = 'all:unset;box-sizing:border-box;pointer-events:auto;cursor:pointer;min-height:40px;padding:8px 14px;border-radius:8px;font:600 14px/1.25 system-ui,sans-serif;text-align:center;display:flex;align-items:center;justify-content:center;';
-  const bPrev = mk('button', btnCardCss + 'flex:1;background:#f5f5f5;color:#222;border:1px solid #d9d9d9;display:none', 'QUAY LẠI');
-  const bNext = mk('button', btnCardCss + 'flex:1;background:#c52b23;color:#fff;border:1px solid #c52b23;display:none', 'TIẾP TỤC');
+  const tipFoot = mk('div', 'display:none;gap:8px;align-items:center;justify-content:flex-end;margin-top:16px;width:100%');
+  const btnCardCss = `all:unset;box-sizing:border-box;pointer-events:auto;cursor:pointer;height:28px;max-width:84px;flex:1 0 0;padding:5px 12px;border-radius:4px;font:500 12px/14px ${CARD_FONT};text-align:center;text-transform:uppercase;display:flex;align-items:center;justify-content:center;white-space:nowrap;`;
+  const bPrev = mk('button', btnCardCss + 'background:#f5f5f5;color:#262626;border:1px solid #d9d9d9;display:none', 'QUAY LẠI');
+  const bNext = mk('button', btnCardCss + 'background:#d81221;color:#fff;display:none', 'TIẾP TỤC');
   tipFoot.append(bPrev, bNext);
   tip.append(tipArrow, tipHead, tipText, tipMeta, tipFoot);
   // chế độ chỉ phát (chạy thử từ trang quản trị, hoặc mở trang với ?tourfp=<mã>): không hiện thanh ghi tour
@@ -729,14 +733,17 @@
     tipMeta.style.display = 'block';
   };
   const setBtns = (next, prev, badge) => {
-    tipStep.textContent = badge || ''; tipStep.style.display = badge ? '' : 'none';
+    const stepCard = !!badge;
+    tip.style.width = stepCard ? '200px' : '260px';
+    tipStep.textContent = badge || ''; tipStep.style.display = stepCard ? 'flex' : 'none';
     bNext.textContent = next || ''; bNext.style.display = next ? 'flex' : 'none';
     bPrev.textContent = prev || ''; bPrev.style.display = prev ? 'flex' : 'none';
     tipFoot.style.display = next || prev ? 'flex' : 'none';
-    if (next && !prev) {
-      bNext.style.flex = '0 1 auto'; bNext.style.minWidth = 'calc(50% - 6px)'; bNext.style.marginLeft = 'auto';
-    } else {
-      bNext.style.flex = '1'; bNext.style.minWidth = '0'; bNext.style.marginLeft = '';
+    for (const b of [bPrev, bNext]) {
+      b.style.maxWidth = stepCard ? '84px' : 'none';
+      b.style.height = stepCard ? '28px' : 'auto';
+      b.style.minHeight = '28px';
+      b.style.whiteSpace = stepCard ? 'nowrap' : 'normal';
     }
   };
   const hideArrow = () => { tipArrow.style.display = 'none'; };
@@ -759,9 +766,10 @@
     Object.assign(box.style, { display: 'block', left: r.left - 4 + 'px', top: r.top - 4 + 'px', width: r.width + 8 + 'px', height: r.height + 8 + 'px' });
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
     const setArrow = (side, pos) => {
-      Object.assign(tipArrow.style, { display: 'block', top: '', bottom: '', left: '', right: '' });
-      tipArrow.style[side] = '-6px';
+      Object.assign(tipArrow.style, { display: 'block', top: '', bottom: '', left: '', right: '', transform: '' });
+      tipArrow.style[side] = side === 'top' || side === 'bottom' ? '-10px' : '-15.5px';
       tipArrow.style[side === 'top' || side === 'bottom' ? 'left' : 'top'] = Math.round(pos) + 'px';
+      tipArrow.style.transform = side === 'top' ? 'rotate(180deg)' : side === 'left' ? 'rotate(90deg)' : side === 'right' ? 'rotate(-90deg)' : '';
     };
     // menu bật ra (không phải hộp thoại chặn màn hình) đang chứa đích, nếu có
     const menu = playing >= 0 ? menuOf(target) : null;
@@ -772,8 +780,8 @@
       const top = clamp(r.top, 12, Math.max(12, innerHeight - h - 12));
       tip.style.left = left + 'px'; tip.style.top = top + 'px';
       const oy = (Math.max(top, r.top) + Math.min(top + h, r.bottom)) / 2;
-      if (left >= a.right) setArrow('left', clamp(oy - top - 7, 18, Math.max(18, h - 32)));
-      else if (left + w <= a.left) setArrow('right', clamp(oy - top - 7, 18, Math.max(18, h - 32)));
+      if (left >= a.right) setArrow('left', clamp(oy - top - 10, 18.5, Math.max(18.5, h - 38.5)));
+      else if (left + w <= a.left) setArrow('right', clamp(oy - top - 10, 18.5, Math.max(18.5, h - 38.5)));
       else hideArrow();
     } else if (playing >= 0) {
       const w = tip.offsetWidth, h = tip.offsetHeight;
@@ -785,8 +793,8 @@
       const top = y != null ? y : Math.max(12, innerHeight - h - 12);
       tip.style.left = left + 'px'; tip.style.top = top + 'px';
       const ox = (Math.max(left, r.left) + Math.min(left + w, r.right)) / 2;
-      if (top >= r.bottom) setArrow('top', clamp(ox - left - 7, 18, Math.max(18, w - 32)));
-      else if (top + h <= r.top) setArrow('bottom', clamp(ox - left - 7, 18, Math.max(18, w - 32)));
+      if (top >= r.bottom) setArrow('top', clamp(ox - left - 15.5, 13, Math.max(13, w - 44)));
+      else if (top + h <= r.top) setArrow('bottom', clamp(ox - left - 15.5, 13, Math.max(13, w - 44)));
       else hideArrow();
     }
   }
