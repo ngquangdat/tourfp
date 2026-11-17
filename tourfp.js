@@ -278,7 +278,10 @@
       if (b.width * b.height > 0.4 * innerWidth * innerHeight) break; // chiếm phần lớn màn hình: đó là vùng chứa, không phải nút
       // cha còn chứa nút, ô nhập, icon hay ảnh khác: đó là một thanh gom nhiều thứ bấm được (thanh trên cùng, thanh bộ lọc), không phải một nút
       const cur = e;
-      if ([...p.querySelectorAll('input,textarea,select,button,a[href],[role=button],img,svg,mat-icon,tcbs-icon')].some(x => !cur.contains(x) && !x.contains(cur) && visible(x))) break;
+      // lớp phủ rỗng nằm đè khít lên mục (hiệu ứng gợn khi bấm): chữ và icon của mục nằm ở thẻ anh em, nên phải leo lên mới có tên
+      const cb = cur.getBoundingClientRect();
+      const veil = !cur.children.length && !norm(cur.textContent) && Math.abs(cb.left - b.left) < 4 && Math.abs(cb.top - b.top) < 4 && Math.abs(cb.width - b.width) < 8 && Math.abs(cb.height - b.height) < 8;
+      if (!veil && [...p.querySelectorAll('input,textarea,select,button,a[href],[role=button],img,svg,mat-icon,tcbs-icon')].some(x => !cur.contains(x) && !x.contains(cur) && visible(x))) break;
       e = p;
     }
     return e;
