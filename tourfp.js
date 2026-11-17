@@ -714,6 +714,15 @@
   const cover = mk('div', `position:fixed;inset:0;z-index:${Z};display:none;background:rgba(14,15,18,.35);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)`);
   const coverOn = () => { cover.style.display = 'block'; };
   const coverOff = () => { cover.style.display = 'none'; };
+  // Khi lớp phủ đang hiện, chuột/chạm THẬT của khách bị chặn ngay ở pha capture của window, trước mọi trình nghe của app:
+  // chỉ cần chuột nhích nhẹ là app thấy mousemove ngoài menu và đóng menu vừa được rê mở. Sự kiện thư viện tự bắn
+  // (isTrusted = false) và thao tác trên thẻ hướng dẫn (nút ✕, Thử lại) vẫn đi qua.
+  for (const t of ['pointerover', 'pointerenter', 'pointermove', 'pointerout', 'pointerleave', 'pointerdown', 'pointerup', 'mouseover', 'mouseenter', 'mousemove', 'mouseout', 'mouseleave', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu', 'touchstart', 'touchmove', 'touchend', 'wheel'])
+    window.addEventListener(t, e => {
+      if (cover.style.display === 'none' || !e.isTrusted || (e.target && tip.contains(e.target))) return;
+      e.stopImmediatePropagation();
+      if (e.cancelable && !/^(pointer|mouse)(over|enter|move|out|leave)$|^touchmove$/.test(e.type)) e.preventDefault();
+    }, { capture: true, passive: false });
   const mount = () => document.documentElement.append(cover, box, tip, panel);
   if (document.documentElement) mount();
   else new MutationObserver((_, mo) => { if (document.documentElement) { mo.disconnect(); mount(); } }).observe(document, { childList: true });
@@ -1098,8 +1107,9 @@
     if (window.TOURFP_MATCH_INFO === true) setMeta(`khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`, true); // dòng kỹ thuật, mặc định ẩn
     else setMeta('');
     const lastStep = i === steps.length - 1;
-    // bước di chuyển chuột không có nút Tiếp tục: người dùng tự rê chuột, menu bật ra là sang bước sau
-    setBtns(lastStep ? 'ĐÃ HIỂU' : st.kind === 'hover' ? null : 'TIẾP TỤC', prevLabel(i), badge);
+    // Nút Tiếp tục chỉ có ở bước tô sáng và bước nhập (không có gì để thư viện làm thay). Bước bấm và bước di chuyển chuột
+    // thì người dùng tự làm trên đích, tour tự sang bước sau. Bước cuối luôn có "Đã hiểu" để đóng.
+    setBtns(lastStep ? 'ĐÃ HIỂU' : st.kind === 'info' || st.kind === 'input' ? 'TIẾP TỤC' : null, prevLabel(i), badge);
     // bước rê chuột: sang bước sau ngay khi đích của bước sau hiện ra
     if (st.kind === 'hover' && nx) {
       if (back) {
@@ -1247,9 +1257,18 @@
   const navTo = path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate', { state: null })); };
   const pressEsc = () => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
   // giả lập rê chuột: sự kiện "enter" không nổi bọt nên bắn riêng cho phần tử và vài cấp cha của nó
+  // Thứ tự như trình duyệt: over → enter (từ cha ngoài cùng vào tới phần tử) → move, tất cả mang toạ độ giữa phần tử,
+  // để app nào xét toạ độ hay xét "move có nằm trong menu không" cũng thấy chuột đang ở trên đích.
   function hoverOn(el) {
-    for (const t of ['pointerover', 'mouseover', 'mousemove']) el.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
-    for (let p = el, i = 0; p && p !== document.body && i < 4; p = p.parentElement, i++) for (const t of ['pointerenter', 'mouseenter']) p.dispatchEvent(new MouseEvent(t, { bubbles: false, view: window }));
+    const r = el.getBoundingClientRect(), at = { bubbles: true, cancelable: true, view: window, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+    const chain = [];
+    for (let p = el, i = 0; p && p !== document.body && i < 4; p = p.parentElement, i++) chain.unshift(p);
+    el.dispatchEvent(new MouseEvent('pointerover', at));
+    for (const p of chain) p.dispatchEvent(new MouseEvent('pointerenter', { ...at, bubbles: false }));
+    el.dispatchEvent(new MouseEvent('mouseover', at));
+    for (const p of chain) p.dispatchEvent(new MouseEvent('mouseenter', { ...at, bubbles: false }));
+    el.dispatchEvent(new MouseEvent('pointermove', at));
+    el.dispatchEvent(new MouseEvent('mousemove', at));
   }
   function clickOn(el) {
     if (!el) return;
@@ -1262,7 +1281,10 @@
   async function direct() {
     const my = directRun + 1;
     try { await directGo(); }
-    catch (_) { if (my === directRun && tip.style.display !== 'none') { tripEnd('error', directAt); directStuck(directAt); } }
+    catch (e) {
+      try { console.error('[tourfp] Vào thẳng gặp lỗi ở bước', directAt + 1, e); } catch (_) { /* không có console */ }
+      if (my === directRun && tip.style.display !== 'none') { tripEnd('error', directAt); directStuck(directAt); }
+    }
   }
   let directStuck = () => {};
   async function directGo() {
@@ -1282,6 +1304,8 @@
     // do trang tích hợp hiện (ví dụ trong hội thoại, từ "summary" của trợ lý). "Thử lại" chạy lại từ đầu, nút ✕ tắt.
     const stuck = (i, r, waited) => {
       coverOff();
+      // lý do kỹ thuật ra console, để người tích hợp biết kẹt vì sao (không tìm thấy, sai màn, mơ hồ, trang không đổi…)
+      try { console.warn('[tourfp] Vào thẳng không tới được bước', i + 1, '/', n, r ? { ketQua: r.status, diem: r.score, manDangDung: context(), manCanToi: steps[i].fp.ctx, dich: nameOf(steps[i].fp) } : { lyDo: 'trang không chuyển sang ' + steps[i].fp.ctx.path, manDangDung: context() }); } catch (_) { /* không có console */ }
       tripStep(i, r ? tripFind(r, waited) : { result: 'stuck', ctx: ctxOf(context()), expected: ctxOf(steps[i].fp.ctx) }); tripEnd('stuck', i);
       directRun++; token++; playing = -1; target = null; atEnd = false; box.style.display = 'none'; cancelAnimationFrame(raf);
       rich(tipText, 'Chưa thể thực hiện lúc này.\nBạn có thể đọc hướng dẫn trong lúc chờ hệ thống ổn định.');
@@ -1311,6 +1335,8 @@
     // từ đó — hộp thoại sẽ được mở bằng chính cú bấm đã ghi. Cả tour đều trong hộp thoại thì đành dẫn từng bước.
     while (first > 0 && steps[first].fp.ctx.dialog) first--;
     if (steps[first].fp.ctx.dialog) { coverOff(); return play(); }
+    // Đích của bước đầu chặng nằm trong menu rê chuột: phải rê lại thì menu mới bật ra, nên gom cả các bước rê chuột đứng ngay trước
+    while (first > 0 && steps[first - 1].kind === 'hover' && steps[first - 1].fp.ctx.path === steps[first].fp.ctx.path) first--;
     const c = context();
     let start = -1;
     for (let i = first; i < n && start < 0; i++) if (sameCtx(steps[i].fp.ctx, c) && sure(steps[i].fp)) start = i; // đang đứng sẵn giữa chặng
@@ -1344,11 +1370,19 @@
       if (r.status !== 'ok') return stuck(i, r, performance.now() - tf); // không thấy đích (màn hình lỗi, dữ liệu chưa tải được): dừng, không treo màn hình
       tripStep(i, tripFind(r, performance.now() - tf));
       if (st.kind === 'input') { directRun++; coverOff(); return show(i); } // không tự làm được (không thấy đích, hoặc cần người dùng nhập): dẫn từng bước từ đây
+      const sigBefore = pageSig(), nx = steps[i + 1];
       if (st.kind === 'hover') hoverOn(r.el);
       else { r.el.scrollIntoView({ block: 'center', inline: 'nearest' }); clickOn(r.el); }
       tripStep(i, { result: 'done' });
       await sleep(350);
       if (!alive()) return;
+      // Cú bấm này đưa sang trang khác (bước sau ở đường dẫn khác): chờ app tải và vẽ xong trang mới (tối đa 8 giây) rồi mới
+      // tìm đích của bước sau, không thì 6 giây tìm kiếm bị tiêu vào lúc trang còn đang tải.
+      if (nx && nx.fp.ctx.path !== st.fp.ctx.path) {
+        const arrived = () => context().path === nx.fp.ctx.path && (!sigBefore || pageSig() !== sigBefore || sure(nx.fp));
+        for (let t = 0; t < 40 && alive() && !arrived(); t++) await sleep(200);
+        if (!alive()) return;
+      }
     }
     // Tour kết thúc bằng các bước tô sáng: đó chính là nội dung cần xem, không bỏ qua được. Tới nơi rồi thì dẫn từng bước
     // từ bước tô sáng đầu tiên của chuỗi cuối, người dùng bấm Tiếp tục để xem lần lượt.
