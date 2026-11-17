@@ -1083,15 +1083,18 @@
     resumeAt = i;
     target = r.el;
     r.el.scrollIntoView({ block: 'center', inline: 'nearest' });
-    const desc = (st.desc || st.note || '').trim();
+    // Dòng đầu: việc cần làm với đích (loại bước + tên đích, hoặc lời riêng `note` của bước). Mô tả thêm (`desc`, người quản trị
+    // nhập ở trang quản trị) nằm ngay dưới, chữ mờ hơn — không thay thế dòng đầu, để người dùng luôn biết phải bấm/rê vào đâu.
     const auto = st.kind === 'click'
       ? `Bấm vào «${name}» để tiếp tục`
       : st.kind === 'hover'
         ? `Di chuyển chuột vào «${name}»`
         : st.kind === 'input'
           ? `Nhập vào ô «${name}», xong bấm Tiếp tục`
-          : name;
-    rich(tipText, desc || auto);
+          : `«${name}»`;
+    rich(tipText, (st.note || '').trim() || auto);
+    const desc = (st.desc || '').trim();
+    if (desc) tipText.append(mk('div', 'margin-top:6px;font-size:12px;line-height:16px;color:#80868b;white-space:pre-line', desc));
     if (window.TOURFP_MATCH_INFO === true) setMeta(`khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`, true); // dòng kỹ thuật, mặc định ẩn
     else setMeta('');
     const lastStep = i === steps.length - 1;
