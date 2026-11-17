@@ -1306,7 +1306,11 @@
     // 2) Còn lại: chỉ làm "chặng cuối", tức các bước liền nhau cùng đường dẫn với bước cuối. Các trang trước đó bỏ qua.
     let first = n - 1;
     while (first > 0 && steps[first - 1].fp.ctx.path === last.fp.ctx.path) first--;
-    if (steps[first].fp.ctx.dialog) { coverOff(); return play(); } // chặng cuối bắt đầu trong một hộp thoại: không tới được bằng đường dẫn, quay về dẫn từng bước
+    // Chặng cuối bắt đầu trong một hộp thoại (app mở hộp thoại ngay khi chuyển trang, hoặc cú bấm mở nó nằm ở trang trước):
+    // hộp thoại không tới được bằng đường dẫn, nên lùi thêm về bước gần nhất ngoài hộp thoại (kể cả ở trang trước) và tự bấm
+    // từ đó — hộp thoại sẽ được mở bằng chính cú bấm đã ghi. Cả tour đều trong hộp thoại thì đành dẫn từng bước.
+    while (first > 0 && steps[first].fp.ctx.dialog) first--;
+    if (steps[first].fp.ctx.dialog) { coverOff(); return play(); }
     const c = context();
     let start = -1;
     for (let i = first; i < n && start < 0; i++) if (sameCtx(steps[i].fp.ctx, c) && sure(steps[i].fp)) start = i; // đang đứng sẵn giữa chặng
@@ -1346,6 +1350,11 @@
       await sleep(350);
       if (!alive()) return;
     }
+    // Tour kết thúc bằng các bước tô sáng: đó chính là nội dung cần xem, không bỏ qua được. Tới nơi rồi thì dẫn từng bước
+    // từ bước tô sáng đầu tiên của chuỗi cuối, người dùng bấm Tiếp tục để xem lần lượt.
+    let k = n;
+    while (k > 0 && steps[k - 1].kind === 'info') k--;
+    if (k < n) { directRun++; coverOff(); return show(k); }
     finish();
   }
 
