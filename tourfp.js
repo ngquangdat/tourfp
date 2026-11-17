@@ -618,12 +618,30 @@
   panel.addEventListener('pointerup', endDrag);
   panel.addEventListener('pointercancel', endDrag);
   const box = mk('div', `position:fixed;z-index:${Z};pointer-events:none;border:2px solid #ffb020;border-radius:6px;display:none;transition:all .08s`);
-  const tip = mk('div', `position:fixed;z-index:${Z + 1};max-width:300px;background:#fff;color:#111;border-radius:8px;padding:10px 12px;display:none;pointer-events:none;box-shadow:0 8px 28px rgba(0,0,0,.4);${FONT}`); // chuột đi xuyên qua chú thích để menu rê chuột bên dưới không tự đóng
-  const tipText = mk('div', 'margin-bottom:4px;white-space:pre-line');
-  const tipMeta = mk('div', 'margin-bottom:8px;font-size:11px;opacity:.55');
-  const bNext = mk('button', btnCss + 'pointer-events:auto;background:#e5484d;', 'Tiếp'), bStop = mk('button', btnCss + 'pointer-events:auto;background:#ddd;color:#111;margin-left:6px', 'Dừng');
-  const bClose = mk('button', btnCss + 'pointer-events:auto;background:none;color:#666;margin-left:6px;display:none', 'Đóng');
-  tip.append(tipText, tipMeta, bNext, bStop, bClose);
+  const tip = mk('div', `position:fixed;z-index:${Z + 1};width:320px;max-width:calc(100vw - 24px);box-sizing:border-box;background:#fff;color:#1f2329;border-radius:16px;padding:16px 20px 20px;display:none;pointer-events:none;filter:drop-shadow(0 6px 20px rgba(0,0,0,.32));${FONT}`); // chuột đi xuyên qua chú thích để menu rê chuột bên dưới không tự đóng
+  const tipArrow = mk('div', 'position:absolute;width:14px;height:14px;background:#fff;transform:rotate(45deg);border-radius:2px;display:none;pointer-events:none');
+  const tipHead = mk('div', 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;min-height:28px');
+  const tipStep = mk('span', 'background:#f2f3f5;color:#222;font-size:14px;font-weight:500;font-variant-numeric:tabular-nums;padding:4px 10px;border-radius:8px;line-height:1.25;display:none');
+  const bClose = mk('button', 'all:unset;box-sizing:border-box;pointer-events:auto;cursor:pointer;color:#3c4043;width:28px;height:28px;margin-left:auto;display:flex;align-items:center;justify-content:center;border-radius:6px');
+  bClose.setAttribute('aria-label', 'Đóng');
+  {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '18'); svg.setAttribute('height', '18'); svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '2.2'); svg.setAttribute('stroke-linecap', 'round');
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', 'M18 6L6 18M6 6l12 12');
+    svg.append(p);
+    bClose.append(svg);
+  }
+  tipHead.append(tipStep, bClose);
+  const tipText = mk('div', 'font-size:16px;line-height:1.45;color:#1f2329;white-space:pre-line');
+  const tipMeta = mk('div', 'margin-top:8px;font-size:11px;opacity:.55;display:none');
+  const tipFoot = mk('div', 'display:none;gap:12px;align-items:center;justify-content:flex-end;margin-top:18px');
+  const btnCardCss = 'all:unset;box-sizing:border-box;pointer-events:auto;cursor:pointer;min-height:40px;padding:8px 14px;border-radius:8px;font:600 14px/1.25 system-ui,sans-serif;text-align:center;display:flex;align-items:center;justify-content:center;';
+  const bPrev = mk('button', btnCardCss + 'flex:1;background:#f5f5f5;color:#222;border:1px solid #d9d9d9;display:none', 'QUAY LẠI');
+  const bNext = mk('button', btnCardCss + 'flex:1;background:#c52b23;color:#fff;border:1px solid #c52b23;display:none', 'TIẾP TỤC');
+  tipFoot.append(bPrev, bNext);
+  tip.append(tipArrow, tipHead, tipText, tipMeta, tipFoot);
   // chế độ chỉ phát (chạy thử từ trang quản trị, hoặc mở trang với ?tourfp=<mã>): không hiện thanh ghi tour
   const PLAYER = !!window.TOURFP_PLAYER || new URLSearchParams(location.search).has('tourfp');
   if (PLAYER) panel.style.display = 'none';
@@ -705,45 +723,76 @@
       if (i % 2) { const b = document.createElement('b'); b.style.fontWeight = '700'; b.textContent = part; node.append(b); } else node.append(part);
     });
   };
-  const setBtns = (next, stop) => {
-    bNext.textContent = next || ''; bNext.style.display = next ? '' : 'none';
-    bStop.textContent = stop || ''; bStop.style.display = stop ? '' : 'none';
+  const setMeta = (t, isRich) => {
+    if (!t) { tipMeta.textContent = ''; tipMeta.style.display = 'none'; return; }
+    if (isRich) rich(tipMeta, t); else tipMeta.textContent = t;
+    tipMeta.style.display = 'block';
   };
+  const setBtns = (next, prev, badge) => {
+    tipStep.textContent = badge || ''; tipStep.style.display = badge ? '' : 'none';
+    bNext.textContent = next || ''; bNext.style.display = next ? 'flex' : 'none';
+    bPrev.textContent = prev || ''; bPrev.style.display = prev ? 'flex' : 'none';
+    tipFoot.style.display = next || prev ? 'flex' : 'none';
+    if (next && !prev) {
+      bNext.style.flex = '0 1 auto'; bNext.style.minWidth = 'calc(50% - 6px)'; bNext.style.marginLeft = 'auto';
+    } else {
+      bNext.style.flex = '1'; bNext.style.minWidth = '0'; bNext.style.marginLeft = '';
+    }
+  };
+  const hideArrow = () => { tipArrow.style.display = 'none'; };
+  const showNoticeTip = () => { hideArrow(); tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px'; };
   const setInfo = t => { rich(info, t || (recording ? `Đang ghi · ${steps.length} bước · Alt+bấm = chỉ tô sáng` : `TourFP · ${steps.length} bước`)); };
   function place() {
     if (!target || !target.isConnected) {
       box.style.display = 'none';
+      hideArrow();
       // đích biến mất giữa chừng (ví dụ menu rê chuột tự đóng): quay lại bước rê chuột trước đó rồi chờ lại
       if (target && playing >= 0 && !advancing) {
         target = null;
         let back = playing;
-        for (let k = playing - 1; k >= 0 && k >= playing - 3; k--) if (steps[k].kind === 'hover') { back = k; break; }
-        show(back);
+        if (steps[playing].kind !== 'hover') for (let k = playing - 1; k >= 0 && k >= playing - 3; k--) if (steps[k].kind === 'hover') { back = k; break; }
+        show(back, back === playing ? playingBack : false);
       }
       return;
     }
     const r = target.getBoundingClientRect();
     Object.assign(box.style, { display: 'block', left: r.left - 4 + 'px', top: r.top - 4 + 'px', width: r.width + 8 + 'px', height: r.height + 8 + 'px' });
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+    const setArrow = (side, pos) => {
+      Object.assign(tipArrow.style, { display: 'block', top: '', bottom: '', left: '', right: '' });
+      tipArrow.style[side] = '-6px';
+      tipArrow.style[side === 'top' || side === 'bottom' ? 'left' : 'top'] = Math.round(pos) + 'px';
+    };
     // menu bật ra (không phải hộp thoại chặn màn hình) đang chứa đích, nếu có
     const menu = playing >= 0 ? menuOf(target) : null;
     if (playing >= 0 && (menu || steps[playing].kind === 'hover')) {
       // đặt chú thích sát bên cạnh: cạnh đích ở bước rê chuột, cạnh ngoài của menu khi đích nằm trong menu (không che các mục khác)
       const a = menu ? menu.getBoundingClientRect() : r, w = tip.offsetWidth, h = tip.offsetHeight;
-      const left = a.right + 12 + w <= innerWidth ? a.right + 12 : Math.max(8, a.left - w - 12);
-      tip.style.left = left + 'px'; tip.style.top = Math.max(8, Math.min(r.top, innerHeight - h - 8)) + 'px';
+      const left = a.right + 14 + w <= innerWidth - 8 ? a.right + 14 : Math.max(12, a.left - w - 14);
+      const top = clamp(r.top, 12, Math.max(12, innerHeight - h - 12));
+      tip.style.left = left + 'px'; tip.style.top = top + 'px';
+      const oy = (Math.max(top, r.top) + Math.min(top + h, r.bottom)) / 2;
+      if (left >= a.right) setArrow('left', clamp(oy - top - 7, 18, Math.max(18, h - 32)));
+      else if (left + w <= a.left) setArrow('right', clamp(oy - top - 7, 18, Math.max(18, h - 32)));
+      else hideArrow();
     } else if (playing >= 0) {
       const w = tip.offsetWidth, h = tip.offsetHeight;
-      tip.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+      const left = clamp(r.left, 12, Math.max(12, innerWidth - w - 12));
       // Không bao giờ để chú thích đè lên đích: thử dưới đích, trên đích, rồi sát đáy màn hình. Đích cao gần hết màn hình
       // (khối lớn) thì không chỗ nào tránh được: đặt sát đáy, phần trên của đích vẫn nhìn thấy và bấm được.
-      const clear = y => y >= 8 && y + h <= innerHeight - 8 && (y >= r.bottom + 4 || y + h <= r.top - 4);
-      const y = [r.bottom + 12, r.top - h - 12, innerHeight - h - 8].find(clear);
-      tip.style.top = (y != null ? y : innerHeight - h - 8) + 'px';
+      const clear = y => y >= 12 && y + h <= innerHeight - 12 && (y >= r.bottom + 4 || y + h <= r.top - 4);
+      const y = [r.bottom + 14, r.top - h - 14, innerHeight - h - 12].find(clear);
+      const top = y != null ? y : Math.max(12, innerHeight - h - 12);
+      tip.style.left = left + 'px'; tip.style.top = top + 'px';
+      const ox = (Math.max(left, r.left) + Math.min(left + w, r.right)) / 2;
+      if (top >= r.bottom) setArrow('top', clamp(ox - left - 7, 18, Math.max(18, w - 32)));
+      else if (top + h <= r.top) setArrow('bottom', clamp(ox - left - 7, 18, Math.max(18, w - 32)));
+      else hideArrow();
     }
   }
   let lastWatch = 0;
   const loop = () => { place(); const t = performance.now(); if (t - lastWatch > 300) { lastWatch = t; watchStep(); } raf = requestAnimationFrame(loop); };
-  const flash = c => { const old = box.style.borderColor; box.style.borderColor = c; setTimeout(() => { box.style.borderColor = old; }, 250); };
+  const flash = c => { box.style.borderColor = c; setTimeout(() => { box.style.borderColor = recording ? '#ffb020' : 'transparent'; }, 250); };
 
   // --- ghi: lấy dấu vân tay lúc nhấn xuống (trước khi app đổi DOM), ghi bước lúc bấm xong
   const onMove = e => {
@@ -852,7 +901,7 @@
     if (d && !d.contains(target) && e.target.closest && (d.contains(e.target) || e.target.closest('.cdk-overlay-container'))) return;
     // bước "chỉ tô sáng": không chặn cú bấm vào chính đích (nếu nó có tác dụng thì bộ theo dõi bên dưới sẽ dẫn tiếp), nhưng không tự sang bước
     if (inside && st.kind === 'info') return;
-    if (inside && st.kind !== 'hover') { if (isClick && st.kind === 'click') { const i = playing; advancing = true; setTimeout(() => { if (playing === i) show(i + 1); }, 300); } return; }
+    if (inside && st.kind !== 'hover') { if (isClick && st.kind === 'click' && !advancing) { const i = playing, seq = showId; advancing = true; setTimeout(() => { if (playing === i && showId === seq) show(i + 1); }, 300); } return; }
     e.stopImmediatePropagation();
     if (isClick) { e.preventDefault(); flash('#fff'); }
   }
@@ -893,9 +942,10 @@
   function stop() { recording = false; pending = null; popMo.disconnect(); bRec.textContent = '● Ghi'; bRec.style.background = '#2a2f3a'; target = null; box.style.display = 'none'; cancelAnimationFrame(raf); setInfo(); }
   function stopPlay(msg) {
     tripEnd('stopped');
-    token++; directRun++; playing = -1; atEnd = false; choice = null; resumeAt = -1; bClose.style.display = 'none';
+    token++; showId++; directRun++; playing = -1; atEnd = false; choice = null; resumeAt = -1;
     if (fullSteps) { steps.length = 0; steps.push(...fullSteps); fullSteps = null; }
-    tip.style.display = 'none'; box.style.display = 'none'; target = null; cancelAnimationFrame(raf); setInfo(msg);
+    hideArrow(); tip.style.display = 'none'; box.style.display = 'none'; target = null; cancelAnimationFrame(raf); setInfo(msg);
+    playingBack = false; lastNext = -300;
   }
 
   const sure = fp => { try { return find(fp).status === 'ok'; } catch (_) { return false; } }; // tìm thấy và không mơ hồ (dò lỗi thì coi như chưa thấy)
@@ -959,22 +1009,24 @@
   // Báo sai bố cục và chờ: người dùng đổi kích thước cửa sổ (hoặc xoay máy) cho đúng thì tự chạy tiếp bằng `again`.
   function holdForLayout(again) {
     const c = layoutClash(), my = ++token;
+    showId++;
     tripMark('wrong-layout');
     playing = -1; target = null; box.style.display = 'none'; cancelAnimationFrame(raf);
-    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
+    showNoticeTip();
     // lời nhắn cho khách hàng: nói việc cần làm, không nói chuyện kỹ thuật
     rich(tipText, c.want === 'mobile'
       ? 'Hướng dẫn này dành cho phiên bản trên «điện thoại».\nBạn vui lòng mở trên điện thoại để xem tiếp nhé.'
       : 'Hướng dẫn này dành cho phiên bản trên «máy tính».\nBạn vui lòng mở trên máy tính để xem tiếp nhé.');
-    tipMeta.textContent = ''; setBtns(null, 'Đóng');
+    setMeta(''); setBtns(null, null, null);
     setInfo('Sai bố cục: tour cho ' + LAYOUT[c.want]);
     const timer = setInterval(() => { if (my !== token) return clearInterval(timer); if (!layoutClash()) { clearInterval(timer); again(); } }, 400);
   }
   function holdForDialog() {
     const my = ++token;
+    showId++;
     playing = -1; target = null; box.style.display = 'none'; cancelAnimationFrame(raf);
-    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
-    rich(tipText, 'Hãy đóng hộp thoại đang che màn hình, tour sẽ tự tiếp tục.'); tipMeta.textContent = ''; setBtns(null, 'Dừng');
+    showNoticeTip();
+    rich(tipText, 'Hãy đóng hộp thoại đang che màn hình, tour sẽ tự tiếp tục.'); setMeta(''); setBtns(null, null, null);
     setInfo('Chờ đóng hộp thoại');
     const timer = setInterval(() => { if (my !== token) return clearInterval(timer); if (!foreignDialog()) { clearInterval(timer); play(); } }, 300);
   }
@@ -983,56 +1035,128 @@
     if (playing < 0 || !target || advancing || recording) return;
     const i = playing, st = steps[i];
     if (foreignDialog()) return holdForDialog();
-    if (!target.isConnected || !visible(target) || offscreen(target) || context().dialog !== st.fp.ctx.dialog) show(i);
+    if (!target.isConnected || !visible(target) || offscreen(target) || context().dialog !== st.fp.ctx.dialog) show(i, playingBack);
   }
-  async function show(i) {
+  let showId = 0, playingBack = false;
+  async function show(i, back = false) {
     if (i >= steps.length) { tripDone(i - 1); tripEnd('done'); return stopPlay(`Xong tour · ${steps.length} bước`); }
     tripDone(i - 1);
+    const seq = ++showId;
+    playingBack = back;
     playing = i; target = null; advancing = false; box.style.display = 'none';
-    const st = steps[i], nx = steps[i + 1], name = st.title || nameOf(st.fp), head = `Bước ${i + 1}/${steps.length}`;
-    // bước rê chuột mà đích của bước sau đã hiện sẵn thì không cần rê nữa
-    if (st.kind === 'hover' && nx && sure(nx.fp)) return show(i + 1);
-    box.style.borderColor = '#e5484d'; box.style.boxShadow = '0 0 0 9999px rgba(0,0,0,.5)';
-    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
-    // nút Tiếp chỉ có ở bước nhập và bước chỉ tô sáng; bước cần bấm hoặc rê chuột thì người dùng phải tự làm
-    rich(tipText, `${head}: đang chờ màn hình…`); tipMeta.textContent = ''; setBtns(null, 'Dừng');
+    const st = steps[i], nx = steps[i + 1], name = st.title || nameOf(st.fp), head = `Bước ${i + 1}/${steps.length}`, badge = `${i + 1}/${steps.length}`;
+    // bước rê chuột mà đích của bước sau đã hiện sẵn thì không cần rê nữa (trừ khi người dùng vừa bấm Quay lại)
+    if (!back && st.kind === 'hover' && nx && sure(nx.fp)) return show(i + 1);
+    box.style.borderColor = 'transparent'; box.style.boxShadow = '0 0 0 9999px rgba(0,0,0,.5)';
+    showNoticeTip();
+    rich(tipText, 'Đang chờ màn hình…'); setMeta(''); setBtns(null, i > 0 ? 'QUAY LẠI' : null, badge);
     setInfo(`${head}: đang tìm`);
     cancelAnimationFrame(raf); loop();
     const after = (from, n) => steps.slice(from, from + n).map((x, k) => ({ fp: x.fp, idx: from + k }));
     tripStep(i, { result: 'waiting' });
     // 30 giây kể từ lúc bắt đầu bước mà vẫn chưa thấy đích: báo về máy chủ là đang kẹt ở bước này (lượt vẫn tiếp tục chờ)
     setTimeout(() => { if (playing === i && trip && !target) tripMark('waiting', i); }, 30000);
-    const tf = performance.now(), r = await waitFind(st.fp, 8000, after(i + 1, 2));
+    const tf = performance.now(), r = await waitFind(st.fp, 8000, back ? null : after(i + 1, 2));
     if (!r || playing !== i) return;
     if (r.skipTo != null) { tripSkip(i, r.skipTo); return show(r.skipTo); }
     tripStep(i, tripFind(r, performance.now() - tf));
     setInfo(`${head}: ${r.status}`);
     if (r.status !== 'ok') {
       rich(tipText, r.status === 'ambiguous'
-        ? `${head}: có nhiều phần tử giống «${name}» nên chưa xác định chắc được đích`
-        : `${head}: không tìm thấy «${name}»` + (r.expected ? `\nCần ở màn: ${r.expected.path} ${r.expected.dialog} ${r.expected.step}` : ''));
-      tipMeta.textContent = r.status;
+        ? `Có nhiều phần tử giống «${name}» nên chưa xác định chắc được đích`
+        : `Không tìm thấy «${name}»` + (r.expected ? `\nCần ở màn: ${r.expected.path} ${r.expected.dialog} ${r.expected.step}` : ''));
+      setMeta(r.status);
       // không bỏ cuộc: tiếp tục theo dõi, đích hiện ra sau (người dùng tự mở menu, dữ liệu tải xong) thì dẫn tiếp
-      const again = await waitFind(st.fp, 600000, after(i + 1, 2));
-      if (again && playing === i) { if (again.skipTo != null) { tripSkip(i, again.skipTo); show(again.skipTo); } else if (again.status === 'ok') show(i); }
+      const again = await waitFind(st.fp, 600000, back ? null : after(i + 1, 2));
+      if (again && playing === i) { if (again.skipTo != null) { tripSkip(i, again.skipTo); show(again.skipTo); } else if (again.status === 'ok') show(i, back); }
       return;
     }
     resumeAt = i;
     target = r.el;
     r.el.scrollIntoView({ block: 'center', inline: 'nearest' });
-    rich(tipText, `${head}: ` + (st.note || (st.kind === 'click' ? `Bấm vào «${name}» để tiếp tục` : st.kind === 'hover' ? `Di chuyển chuột vào «${name}»` : st.kind === 'input' ? `Nhập vào ô «${name}», xong bấm Tiếp` : name)));
-    // mô tả thêm của bước (người quản trị nhập ở trang quản trị): hiện ngay dưới lời hướng dẫn
-    if (st.desc) tipText.append(mk('div', 'margin-top:4px;font-size:13px;opacity:.75;white-space:pre-line', String(st.desc)));
-    if (window.TOURFP_MATCH_INFO === true) rich(tipMeta, `khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`); // dòng kỹ thuật, mặc định ẩn
-    // bước cuối: nút thành "Kết thúc". Bước có nút Tiếp thì chỉ còn một nút Kết thúc; bước phải tự bấm thì nút Dừng đổi tên.
-    const lastStep = i === steps.length - 1, manual = st.kind === 'input' || st.kind === 'info';
-    if (lastStep) setBtns(manual ? 'Kết thúc' : null, manual ? null : 'Kết thúc');
-    else setBtns(manual ? 'Tiếp' : null, 'Dừng');
+    const desc = (st.desc || st.note || '').trim();
+    const auto = st.kind === 'click'
+      ? `Bấm vào «${name}» để tiếp tục`
+      : st.kind === 'hover'
+        ? `Di chuyển chuột vào «${name}»`
+        : st.kind === 'input'
+          ? `Nhập vào ô «${name}», xong bấm Tiếp tục`
+          : name;
+    rich(tipText, desc || auto);
+    if (window.TOURFP_MATCH_INFO === true) setMeta(`khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`, true); // dòng kỹ thuật, mặc định ẩn
+    else setMeta('');
+    const lastStep = i === steps.length - 1;
+    setBtns(lastStep ? 'ĐÃ HIỂU' : 'TIẾP TỤC', i > 0 ? 'QUAY LẠI' : null, badge);
     // bước rê chuột: sang bước sau ngay khi đích của bước sau hiện ra
     if (st.kind === 'hover' && nx) {
+      if (back) {
+        // nếu menu rê chuột vẫn đang mở từ bước vừa quay lại, chờ nó đóng hẳn rồi mới tự tiến khi người dùng rê lại
+        while (seq === showId && playing === i && sure(nx.fp)) await sleep(150);
+        if (seq !== showId || playing !== i) return;
+      }
       const r2 = await waitFind(nx.fp, 120000, after(i + 2, 2), true);
-      if (r2 && playing === i) { if (r2.skipTo != null) { tripSkip(i + 1, r2.skipTo); show(r2.skipTo); } else if (r2.status === 'ok') show(i + 1); }
+      if (r2 && seq === showId && playing === i) { if (r2.skipTo != null) { tripSkip(i + 1, r2.skipTo); show(r2.skipTo); } else if (r2.status === 'ok') show(i + 1); }
     }
+  }
+  async function goPrev() {
+    if (playing <= 0) return;
+    lastNext = -300;
+    const targetIdx = playing - 1, want = steps[targetIdx].fp.ctx;
+    if (sameCtx(want, context())) return show(targetIdx, true);
+
+    const my = ++token;
+    showId++;
+    playing = targetIdx; target = null; advancing = false; box.style.display = 'none'; cancelAnimationFrame(raf);
+    showNoticeTip();
+    rich(tipText, 'Đang quay lại bước trước…');
+    setMeta(want.path !== location.pathname ? want.path : '');
+    setBtns(null, null, `${targetIdx + 1}/${steps.length}`);
+
+    const hadDialog = !!topDialog();
+    if (hadDialog && dialogKey(topDialog()) !== want.dialog) pressEsc();
+
+    if (location.pathname !== want.path) {
+      const before = pageSig(), t0 = performance.now();
+      const hasMatch = fp => { try { return find(fp, { ignoreCtx: true }).status === 'ok'; } catch (_) { return false; } };
+      const wasSure = hasMatch(steps[targetIdx].fp);
+      const wasEarlier = steps.slice(0, targetIdx).map(s => hasMatch(s.fp));
+      const structSig = () => [document.title, ...[...document.querySelectorAll('main,[role=main],h1,h2')].filter(e => visible(e) && !isUi(e)).map(e => e.tagName + '#' + (e.id || '') + ':' + stripNum(e.textContent).slice(0, 30))].join('|');
+      const beforeStruct = structSig();
+      let arrived = false;
+      try { sessionStorage.setItem(RESUME, JSON.stringify({ steps, at: targetIdx })); } catch (_) {}
+      navTo(want.path);
+      while (my === token && performance.now() - t0 < 3000) {
+        const c = context();
+        if (c.path === want.path) {
+          const hit = sameCtx(want, c) && sure(steps[targetIdx].fp);
+          const structChanged = structSig() !== beforeStruct;
+          const earlierHit = steps.slice(0, targetIdx).some((s, k) => !wasEarlier[k] && sameCtx(s.fp.ctx, c) && sure(s.fp));
+          if (before) {
+            if (pageSig() !== before && (hit || sameCtx(want, c) || earlierHit)) { arrived = true; break; }
+          } else {
+            if ((!wasSure && hit) || (structChanged && hit) || earlierHit) { arrived = true; break; }
+          }
+        }
+        await sleep(150);
+      }
+      if (my !== token) return;
+      if (!arrived) { tripStash(); return location.assign(want.path); }
+      try { sessionStorage.removeItem(RESUME); } catch (_) {}
+    } else if (hadDialog) {
+      const t0 = performance.now();
+      while (my === token && performance.now() - t0 < 1200) {
+        if (sameCtx(want, context())) break;
+        await sleep(100);
+      }
+      if (my !== token) return;
+    }
+
+    if (sameCtx(want, context()) || sure(steps[targetIdx].fp)) return show(targetIdx, true);
+    const c = context();
+    for (let k = targetIdx - 1; k >= 0; k--) {
+      if (sameCtx(steps[k].fp.ctx, c) && sure(steps[k].fp)) return show(k, true);
+    }
+    show(targetIdx, true);
   }
   // bước đầu tiên thuộc màn đang đứng (cùng đường dẫn, hộp thoại, bước); ưu tiên bước đã tìm thấy đích
   const sameCtx = (a, b) => a.path === b.path && a.dialog === b.dialog && a.step === b.step;
@@ -1052,9 +1176,10 @@
   const RESUME = 'tourfp:resume';
   function goStart() {
     const path = steps[0].fp.ctx.path, my = ++token, t0 = performance.now(), before = pageSig(), samePath = location.pathname === path;
+    showId++; lastNext = -300;
     playing = 0; target = null; box.style.display = 'none';
-    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px'; bNext.style.display = 'none';
-    rich(tipText, 'Màn này không có trong tour — đang về màn bắt đầu…'); tipMeta.textContent = path; setBtns(null, 'Dừng');
+    showNoticeTip();
+    rich(tipText, 'Màn này không có trong tour — đang về màn bắt đầu…'); setMeta(path); setBtns(null, null, null);
     try { sessionStorage.setItem(RESUME, JSON.stringify(steps)); } catch (_) { /* không lưu được thì thôi */ }
     // đang có hộp thoại mà bước 1 không nằm trong hộp thoại: thử đóng bằng phím Esc trước
     if (topDialog() && !steps[0].fp.ctx.dialog) document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
@@ -1071,10 +1196,10 @@
   let atEnd = false;
   function endNotice() {
     tripEnd('done');
-    token++; playing = -1; target = null; atEnd = true; box.style.display = 'none'; cancelAnimationFrame(raf);
-    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
-    rich(tipText, 'Bạn đang ở màn cuối của tour, bước cuối đã được thực hiện.'); tipMeta.textContent = '';
-    setBtns('Phát lại từ đầu', 'Dừng');
+    token++; showId++; playing = -1; target = null; atEnd = true; box.style.display = 'none'; cancelAnimationFrame(raf);
+    showNoticeTip();
+    rich(tipText, 'Bạn đang ở màn cuối của tour, bước cuối đã được thực hiện.'); setMeta('');
+    setBtns('PHÁT LẠI TỪ ĐẦU', null, null);
     setInfo('Đang ở màn cuối của tour');
   }
   async function play() {
@@ -1113,6 +1238,12 @@
     for (const t of ['pointerover', 'mouseover', 'mousemove']) el.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
     for (let p = el, i = 0; p && p !== document.body && i < 4; p = p.parentElement, i++) for (const t of ['pointerenter', 'mouseenter']) p.dispatchEvent(new MouseEvent(t, { bubbles: false, view: window }));
   }
+  function clickOn(el) {
+    if (!el) return;
+    if (typeof el.click === 'function') return el.click();
+    const r = el.getBoundingClientRect();
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+  }
   // Vào thẳng không bao giờ được bỏ màn hình đứng ở "Đang đưa bạn tới…": lỗi bất ngờ giữa chừng thì báo như không tới được.
   let directAt = 0;
   async function direct() {
@@ -1128,19 +1259,19 @@
     if (layoutClash()) return holdForLayout(direct);
     const my = ++directRun, alive = () => my === directRun;
     const n = steps.length, last = steps[n - 1];
-    token++; playing = -1; target = null; atEnd = false; box.style.display = 'none'; cancelAnimationFrame(raf);
-    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
-    const say = t => { rich(tipText, t); tipMeta.textContent = ''; setBtns(null, 'Dừng'); };
+    token++; showId++; playing = -1; target = null; atEnd = false; box.style.display = 'none'; cancelAnimationFrame(raf);
+    showNoticeTip();
+    const say = t => { rich(tipText, t); setMeta(''); setBtns(null, null, null); };
     say('Đang đưa bạn tới màn hình…');
-    const finish = () => { tripDone(n - 1); tripEnd('done'); say('Đã đưa bạn tới nơi.'); setBtns(null, null); setTimeout(() => { if (alive()) stopPlay('Đã tới nơi'); }, 1600); };
+    const finish = () => { tripDone(n - 1); tripEnd('done'); say('Đã đưa bạn tới nơi.'); setTimeout(() => { if (alive()) stopPlay('Đã tới nơi'); }, 1600); };
 
     // Không tự đi tiếp được từ bước i: dừng hẳn (không tô tối, không chặn thao tác) và báo cho người dùng. Phần hướng dẫn bằng chữ
-    // do trang tích hợp hiện (ví dụ trong hội thoại, từ "summary" của trợ lý). "Thử lại" chạy lại từ đầu, "Đóng" tắt.
+    // do trang tích hợp hiện (ví dụ trong hội thoại, từ "summary" của trợ lý). "Thử lại" chạy lại từ đầu, nút ✕ tắt.
     const stuck = (i, r, waited) => {
       tripStep(i, r ? tripFind(r, waited) : { result: 'stuck', ctx: ctxOf(context()), expected: ctxOf(steps[i].fp.ctx) }); tripEnd('stuck', i);
       directRun++; token++; playing = -1; target = null; atEnd = false; box.style.display = 'none'; cancelAnimationFrame(raf);
       rich(tipText, 'Chưa thể thực hiện lúc này.\nBạn có thể đọc hướng dẫn trong lúc chờ hệ thống ổn định.');
-      tipMeta.textContent = ''; setBtns('Thử lại', 'Đóng'); bClose.style.display = 'none';
+      setMeta(''); setBtns('THỬ LẠI', null, null);
       choice = { guide: direct, direct: () => stopPlay() };
       setInfo(`Chưa tới được bước ${i + 1}/${n}`);
       try { window.dispatchEvent(new CustomEvent('tourfp:stuck', { detail: { step: i + 1, total: n } })); } catch (_) { /* trình duyệt cũ */ }
@@ -1196,7 +1327,7 @@
       tripStep(i, tripFind(r, performance.now() - tf));
       if (st.kind === 'input') { directRun++; return show(i); } // không tự làm được (không thấy đích, hoặc cần người dùng nhập): dẫn từng bước từ đây
       if (st.kind === 'hover') hoverOn(r.el);
-      else { r.el.scrollIntoView({ block: 'center', inline: 'nearest' }); r.el.click(); }
+      else { r.el.scrollIntoView({ block: 'center', inline: 'nearest' }); clickOn(r.el); }
       tripStep(i, { result: 'done' });
       await sleep(350);
       if (!alive()) return;
@@ -1325,11 +1456,10 @@
     }
     if (opts.ui === false) return a;
     stopPlay();
-    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px'; tipMeta.textContent = '';
-    bClose.style.display = '';
-    if (!a.matched) { rich(tipText, a.reason || 'Chưa tìm thấy tour phù hợp.'); setBtns(null, null); choice = {}; return a; }
+    showNoticeTip(); setMeta('');
+    if (!a.matched) { rich(tipText, a.reason || 'Chưa tìm thấy tour phù hợp.'); setBtns(null, null, null); choice = {}; return a; }
     rich(tipText, `«${a.tour.name}»` + (a.to_step < a.tour.step_count ? ` · tới bước ${a.to_step}/${a.tour.step_count}` : '') + '\n' + a.reason);
-    setBtns(a.options[0].label, a.options[1].label);
+    setBtns(a.options[0].label, a.options[1].label, null);
     const go = mode => run(a.tour.id, { mode, to: a.to_step }).catch(() => { rich(tipText, 'Không tải được tour.'); });
     choice = { guide: () => go('guide'), direct: () => go('direct') };
     return a;
@@ -1421,9 +1551,33 @@
   bRec.onclick = () => (recording ? stop() : record());
   bPlay.onclick = play;
   bClr.onclick = () => { fullSteps = null; steps.length = 0; stopPlay(); };
-  const pick = k => { const f = choice[k]; choice = null; bClose.style.display = 'none'; if (f) f(); };
-  bNext.onclick = () => { if (choice) pick('guide'); else if (atEnd) { atEnd = false; goStart(); } else show(playing + 1); };
-  bStop.onclick = () => { if (choice) pick('direct'); else { if (playing === steps.length - 1 && target) { tripDone(playing); tripEnd('done'); } stopPlay(); } };
+  const pick = k => { const f = choice[k]; choice = null; if (f) f(); };
+  let lastNext = -300;
+  for (const ev of ['click', 'pointerdown', 'mousedown', 'pointerup', 'mouseup']) tip.addEventListener(ev, e => e.stopPropagation());
+  bNext.onclick = e => {
+    e.stopPropagation();
+    const now = performance.now();
+    if (e.detail > 1) return;
+    if (choice) return pick('guide');
+    if (atEnd) { atEnd = false; return goStart(); }
+    if (playing < 0 || advancing || now - lastNext < 250) return;
+    lastNext = now;
+    const i = playing, seq = showId, st = steps[i], lastStep = i === steps.length - 1;
+    if (!lastStep && st.kind === 'click' && target && target.isConnected) {
+      advancing = true;
+      clickOn(target);
+      setTimeout(() => { if (playing === i && showId === seq) show(i + 1); }, 300);
+      return;
+    }
+    if (!lastStep && st.kind === 'hover' && target && target.isConnected) {
+      advancing = true;
+      hoverOn(target);
+      setTimeout(() => { if (playing === i && showId === seq) show(i + 1); }, 150);
+      return;
+    }
+    show(i + 1);
+  };
+  bPrev.onclick = e => { if (e.detail > 1) return; if (choice) pick('direct'); else goPrev(); };
   bClose.onclick = () => stopPlay();
   const L = [['mousemove', onMove], ['mouseover', onOver], ['pointerdown', onDown], ['mousedown', onUp], ['pointerup', onUp], ['mouseup', onUp], ['click', onClick]];
   for (const [n, h] of L) document.addEventListener(n, h, true);
@@ -1460,8 +1614,14 @@
     const saved = sessionStorage.getItem(RESUME);
     if (saved) {
       sessionStorage.removeItem(RESUME);
-      steps.push(...JSON.parse(saved)); setInfo();
-      setTimeout(() => { const i = startIndex(); show(i >= 0 ? i : 0); }, 800);
+      const parsed = JSON.parse(saved);
+      const arr = Array.isArray(parsed) ? parsed : parsed && Array.isArray(parsed.steps) ? parsed.steps : [];
+      const at = !Array.isArray(parsed) && parsed && typeof parsed.at === 'number' ? parsed.at : -1;
+      steps.push(...arr); setInfo();
+      setTimeout(() => {
+        if (at >= 0 && at < steps.length) return show(at, true);
+        const i = startIndex(); show(i >= 0 ? i : 0);
+      }, 800);
     }
   } catch (_) { /* không đọc được thì bỏ qua */ }
 
@@ -1470,8 +1630,8 @@
   // Không tải được (máy chủ không gọi được, CSP của trang chặn, mã tour sai): báo ngay trên trang, vì thanh ghi đang ẩn ở chế độ phát
   if (wanted && !steps.length) run(wanted, { mode: qs.get('mode'), to: qs.get('to'), log: qs.get('log') }).catch(() => {
     setInfo('Không tải được tour ' + wanted);
-    tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px';
-    rich(tipText, 'Không tải được tour hướng dẫn.'); tipMeta.textContent = ''; setBtns(null, null); bClose.style.display = ''; choice = {};
+    showNoticeTip();
+    rich(tipText, 'Không tải được tour hướng dẫn.'); setMeta(''); setBtns(null, null, null); choice = {};
   });
   if (window.TOURFP_BOOKMARK) { delete window.TOURFP_BOOKMARK; bookmark(); }
 })();
