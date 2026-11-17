@@ -731,9 +731,13 @@
       const left = a.right + 12 + w <= innerWidth ? a.right + 12 : Math.max(8, a.left - w - 12);
       tip.style.left = left + 'px'; tip.style.top = Math.max(8, Math.min(r.top, innerHeight - h - 8)) + 'px';
     } else if (playing >= 0) {
-      const below = r.bottom + 12 + tip.offsetHeight < innerHeight;
-      tip.style.left = Math.max(8, Math.min(r.left, innerWidth - tip.offsetWidth - 8)) + 'px';
-      tip.style.top = (below ? r.bottom + 12 : Math.max(8, r.top - tip.offsetHeight - 12)) + 'px';
+      const w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+      // Không bao giờ để chú thích đè lên đích: thử dưới đích, trên đích, rồi sát đáy màn hình. Đích cao gần hết màn hình
+      // (khối lớn) thì không chỗ nào tránh được: đặt sát đáy, phần trên của đích vẫn nhìn thấy và bấm được.
+      const clear = y => y >= 8 && y + h <= innerHeight - 8 && (y >= r.bottom + 4 || y + h <= r.top - 4);
+      const y = [r.bottom + 12, r.top - h - 12, innerHeight - h - 8].find(clear);
+      tip.style.top = (y != null ? y : innerHeight - h - 8) + 'px';
     }
   }
   let lastWatch = 0;
