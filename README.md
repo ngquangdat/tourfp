@@ -29,13 +29,13 @@ Với Angular, nên khai báo trong `angular.json` để thư viện được n�
 Hoặc không cần cài, nạp bằng một thẻ script qua CDN:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/tourfp@0.3.22/tourfp.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tourfp@0.3.23/tourfp.js"></script>
 ```
 
 Để dùng thử nhanh trên một trang đang mở (trang phải cho phép script từ `cdn.jsdelivr.net`), dán dòng này vào console:
 
 ```js
-document.head.appendChild(Object.assign(document.createElement('script'), { src: 'https://cdn.jsdelivr.net/npm/tourfp@0.3.22/tourfp.js' }));
+document.head.appendChild(Object.assign(document.createElement('script'), { src: 'https://cdn.jsdelivr.net/npm/tourfp@0.3.23/tourfp.js' }));
 ```
 
 Tuỳ chọn, đặt trước khi nạp thư viện:
@@ -54,7 +54,7 @@ Sau khi nạp thư viện (xem Cài đặt), một thanh điều khiển hiện 
 
 - **● Ghi** — thao tác như bình thường, mỗi cú bấm thành một bước và vẫn chạy thật.
   - Bấm vào phần tử làm đổi màn hoặc đổi nội dung: bước "bấm" (khi phát, người dùng phải tự bấm).
-  - Bấm vào phần tử không bấm được, hoặc bấm mà trang không đổi gì: bước "tô sáng" (khi phát có nút Tiếp).
+  - Bấm vào phần tử không bấm được, hoặc bấm mà trang không đổi gì: bước "tô sáng" (khi phát chỉ cần bấm Tiếp tục).
   - Bấm vào mục trong menu bật ra do di chuyển chuột: tự chèn bước "di chuyển chuột" phía trước.
   - Giữ Alt khi bấm: ghi bước "tô sáng" và chặn cú bấm.
 - **▶ Phát** — tô sáng từng đích, chặn bấm ra ngoài đích, tự chờ màn mới hiện ra.
@@ -175,7 +175,7 @@ tour chưa kiểm thử trên bản đó, hoặc Đạt / Lưu ý, vẫn đượ
 
 Khi vào thẳng mà một bước không tìm thấy đích sau 6 giây (màn hình lỗi, dữ liệu chưa tải được), thư viện dừng hẳn, không
 che hay chặn màn hình, và báo "Chưa thể thực hiện lúc này. Bạn có thể đọc hướng dẫn trong lúc chờ hệ thống ổn định.",
-với nút **Thử lại** và **Đóng**. Phần hướng dẫn bằng chữ do trang tích hợp hiện (ví dụ trong hội thoại, lấy từ `summary` của
+với nút **Thử lại** và nút ✕ để đóng. Phần hướng dẫn bằng chữ do trang tích hợp hiện (ví dụ trong hội thoại, lấy từ `summary` của
 trợ lý). Trang nhận thêm sự kiện `tourfp:stuck` trên `window` (`detail: { step, total }`).
 
 ### Lượt chạy của khách
