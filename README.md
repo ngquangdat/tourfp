@@ -45,6 +45,7 @@ window.TOURFP_SERVER = 'https://tour.example.com'; // máy chủ lưu tour, mặ
 window.TOURFP_PLAYER = true;                       // chỉ phát, không hiện thanh ghi tour
 window.TOURFP_LOG = false;                         // không bắn sự kiện tourfp:run (lượt chạy của khách) nữa
 window.TOURFP_MATCH_INFO = true;                   // hiện dòng kỹ thuật "khớp 93% · scan · 7 ms" dưới lời hướng dẫn (mặc định ẩn)
+window.TOURFP_BACK = true;                         // thêm nút "Quay lại" trên thẻ hướng dẫn (mặc định tắt)
 ```
 
 ## Dùng thử

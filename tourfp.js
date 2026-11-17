@@ -7,7 +7,8 @@
  * - Phát: tô sáng đích, chờ người dùng tự bấm rồi mới sang bước sau; tự chờ màn mới hiện ra.
  *   start({ mode: 'guide' | 'direct', to }) chạy tới bước thứ `to`: dẫn từng bước, hoặc thư viện tự đưa tới nơi.
  * - Cấu hình (đặt trước khi nạp): window.TOURFP_SERVER = địa chỉ máy chủ lưu tour; window.TOURFP_PLAYER = true để ẩn thanh ghi;
- *   window.TOURFP_MATCH_INFO = true để hiện dòng kỹ thuật "khớp 93% · scan · 7 ms" dưới lời hướng dẫn (mặc định ẩn).
+ *   window.TOURFP_MATCH_INFO = true để hiện dòng kỹ thuật "khớp 93% · scan · 7 ms" dưới lời hướng dẫn (mặc định ẩn);
+ *   window.TOURFP_BACK = true để có nút "Quay lại" trên thẻ hướng dẫn (mặc định tắt).
  * - Lượt chạy của khách (dẫn từng bước hay vào thẳng): khi kết thúc, thư viện bắn sự kiện tourfp:run trên window với toàn bộ dữ liệu
  *   lượt (ẩn danh). Thư viện KHÔNG tự gọi mạng; trang tích hợp nghe sự kiện và gửi detail lên POST /api/runs của máy chủ quản trị
  *   (qua backend của mình, vì CSP của trang thường không cho gọi thẳng). Tắt bằng window.TOURFP_LOG = false.
@@ -618,11 +619,12 @@
   panel.addEventListener('pointerup', endDrag);
   panel.addEventListener('pointercancel', endDrag);
   const box = mk('div', `position:fixed;z-index:${Z};pointer-events:none;border:2px solid #ffb020;border-radius:6px;display:none;transition:all .08s`);
-  const tip = mk('div', `position:fixed;z-index:${Z + 1};width:320px;max-width:calc(100vw - 24px);box-sizing:border-box;background:#fff;color:#1f2329;border-radius:16px;padding:16px 20px 20px;display:none;pointer-events:none;filter:drop-shadow(0 6px 20px rgba(0,0,0,.32));${FONT}`); // chuột đi xuyên qua chú thích để menu rê chuột bên dưới không tự đóng
+  // Thẻ theo thiết kế: rộng 200px, đệm 12px, các khối cách nhau 16px, bo 8px, bóng "Card shadow/lg", chữ Roboto 14px/18px
+  const tip = mk('div', `position:fixed;z-index:${Z + 1};width:200px;max-width:calc(100vw - 24px);box-sizing:border-box;display:none;flex-direction:column;align-items:stretch;gap:16px;background:#fff;color:#1f2329;border-radius:8px;padding:12px;pointer-events:none;filter:drop-shadow(0 2px 8px rgba(0,0,0,.20));font:400 14px/18px Roboto,system-ui,sans-serif`); // chuột đi xuyên qua chú thích để menu rê chuột bên dưới không tự đóng
   const tipArrow = mk('div', 'position:absolute;width:14px;height:14px;background:#fff;transform:rotate(45deg);border-radius:2px;display:none;pointer-events:none');
-  const tipHead = mk('div', 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;min-height:28px');
-  const tipStep = mk('span', 'background:#f2f3f5;color:#222;font-size:14px;font-weight:500;font-variant-numeric:tabular-nums;padding:4px 10px;border-radius:8px;line-height:1.25;display:none');
-  const bClose = mk('button', 'all:unset;box-sizing:border-box;pointer-events:auto;cursor:pointer;color:#3c4043;width:28px;height:28px;margin-left:auto;display:flex;align-items:center;justify-content:center;border-radius:6px');
+  const tipHead = mk('div', 'display:flex;align-items:center;justify-content:space-between;min-height:24px');
+  const tipStep = mk('span', 'background:#f2f3f5;color:#222;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;padding:3px 8px;border-radius:6px;line-height:1.25;display:none');
+  const bClose = mk('button', 'all:unset;box-sizing:border-box;pointer-events:auto;cursor:pointer;color:#3c4043;width:24px;height:24px;margin-left:auto;display:flex;align-items:center;justify-content:center;border-radius:6px');
   bClose.setAttribute('aria-label', 'Đóng');
   {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -634,10 +636,10 @@
     bClose.append(svg);
   }
   tipHead.append(tipStep, bClose);
-  const tipText = mk('div', 'font-size:16px;line-height:1.45;color:#1f2329;white-space:pre-line');
-  const tipMeta = mk('div', 'margin-top:8px;font-size:11px;opacity:.55;display:none');
-  const tipFoot = mk('div', 'display:none;gap:12px;align-items:center;justify-content:flex-end;margin-top:18px');
-  const btnCardCss = 'all:unset;box-sizing:border-box;pointer-events:auto;cursor:pointer;min-height:40px;padding:8px 14px;border-radius:8px;font:600 14px/1.25 system-ui,sans-serif;text-align:center;display:flex;align-items:center;justify-content:center;';
+  const tipText = mk('div', 'font:400 14px/18px Roboto,system-ui,sans-serif;color:#1f2329;white-space:pre-line');
+  const tipMeta = mk('div', 'margin-top:-10px;font-size:11px;line-height:14px;opacity:.55;display:none');
+  const tipFoot = mk('div', 'display:none;gap:8px;align-items:center;justify-content:flex-end');
+  const btnCardCss = 'all:unset;box-sizing:border-box;pointer-events:auto;cursor:pointer;min-height:36px;padding:8px 10px;border-radius:8px;font:600 13px/1.25 Roboto,system-ui,sans-serif;text-align:center;display:flex;align-items:center;justify-content:center;';
   const bPrev = mk('button', btnCardCss + 'flex:1;background:#f5f5f5;color:#222;border:1px solid #d9d9d9;display:none', 'QUAY LẠI');
   const bNext = mk('button', btnCardCss + 'flex:1;background:#c52b23;color:#fff;border:1px solid #c52b23;display:none', 'TIẾP TỤC');
   tipFoot.append(bPrev, bNext);
@@ -745,7 +747,7 @@
     }
   };
   const hideArrow = () => { tipArrow.style.display = 'none'; };
-  const showNoticeTip = () => { hideArrow(); tip.style.display = 'block'; tip.style.left = '12px'; tip.style.top = '12px'; };
+  const showNoticeTip = () => { hideArrow(); tip.style.display = 'flex'; tip.style.left = '12px'; tip.style.top = '12px'; };
   const setInfo = t => { rich(info, t || (recording ? `Đang ghi · ${steps.length} bước · Alt+bấm = chỉ tô sáng` : `TourFP · ${steps.length} bước`)); };
   function place() {
     if (!target || !target.isConnected) {
@@ -1043,6 +1045,8 @@
     if (!target.isConnected || !visible(target) || offscreen(target) || context().dialog !== st.fp.ctx.dialog) show(i, playingBack);
   }
   let showId = 0, playingBack = false;
+  // nút "Quay lại" chỉ hiện khi trang bật window.TOURFP_BACK = true (mặc định tắt) và không phải bước đầu
+  const prevLabel = i => window.TOURFP_BACK === true && i > 0 ? 'QUAY LẠI' : null;
   async function show(i, back = false) {
     if (i >= steps.length) { tripDone(i - 1); tripEnd('done'); return stopPlay(`Xong tour · ${steps.length} bước`); }
     tripDone(i - 1);
@@ -1054,7 +1058,7 @@
     if (!back && st.kind === 'hover' && nx && sure(nx.fp)) return show(i + 1);
     box.style.borderColor = 'transparent'; box.style.boxShadow = '0 0 0 9999px rgba(0,0,0,.5)';
     showNoticeTip();
-    rich(tipText, 'Đang chờ màn hình…'); setMeta(''); setBtns(null, i > 0 ? 'QUAY LẠI' : null, badge);
+    rich(tipText, 'Đang chờ màn hình…'); setMeta(''); setBtns(null, prevLabel(i), badge);
     setInfo(`${head}: đang tìm`);
     cancelAnimationFrame(raf); loop();
     const after = (from, n) => steps.slice(from, from + n).map((x, k) => ({ fp: x.fp, idx: from + k }));
@@ -1091,7 +1095,7 @@
     if (window.TOURFP_MATCH_INFO === true) setMeta(`khớp ${Math.round(r.score * 100)}% · ${r.via} · ${r.ms} ms`, true); // dòng kỹ thuật, mặc định ẩn
     else setMeta('');
     const lastStep = i === steps.length - 1;
-    setBtns(lastStep ? 'ĐÃ HIỂU' : 'TIẾP TỤC', i > 0 ? 'QUAY LẠI' : null, badge);
+    setBtns(lastStep ? 'ĐÃ HIỂU' : 'TIẾP TỤC', prevLabel(i), badge);
     // bước rê chuột: sang bước sau ngay khi đích của bước sau hiện ra
     if (st.kind === 'hover' && nx) {
       if (back) {
@@ -1254,7 +1258,7 @@
   async function direct() {
     const my = directRun + 1;
     try { await directGo(); }
-    catch (_) { if (my === directRun && tip.style.display === 'block') { tripEnd('error', directAt); directStuck(directAt); } }
+    catch (_) { if (my === directRun && tip.style.display !== 'none') { tripEnd('error', directAt); directStuck(directAt); } }
   }
   let directStuck = () => {};
   async function directGo() {
@@ -1602,7 +1606,7 @@
     apiStats: () => ({ responses: api.responses, values: api.set.size }),
     appVersion, bookmark,
     isApiValue,
-    state: () => ({ recording, playing, steps: steps.length, target: target ? nameOf(capture(target)) : null, tip: tip.style.display === 'block' ? tipText.textContent : '' }),
+    state: () => ({ recording, playing, steps: steps.length, target: target ? nameOf(capture(target)) : null, tip: tip.style.display !== 'none' ? tipText.textContent : '' }),
     export: () => { scrub(); return JSON.stringify(steps, null, 2); },
     // tour nạp từ ngoài có thể đã bị lược các trường rỗng: điền lại giá trị mặc định để việc so khớp không lệch hay ném lỗi
     load: a => {
