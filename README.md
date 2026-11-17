@@ -44,7 +44,7 @@ Tuỳ chọn, đặt trước khi nạp thư viện:
 window.TOURFP_SERVER = 'https://tour.example.com'; // máy chủ lưu tour, mặc định http://localhost:8000
 window.TOURFP_PLAYER = true;                       // chỉ phát, không hiện thanh ghi tour
 window.TOURFP_LOG = false;                         // không bắn sự kiện tourfp:run (lượt chạy của khách) nữa
-window.TOURFP_MATCH_INFO = false;                  // ẩn dòng kỹ thuật "khớp 93% · scan · 7 ms" dưới lời hướng dẫn
+window.TOURFP_MATCH_INFO = true;                   // hiện dòng kỹ thuật "khớp 93% · scan · 7 ms" dưới lời hướng dẫn (mặc định ẩn)
 ```
 
 ## Dùng thử
